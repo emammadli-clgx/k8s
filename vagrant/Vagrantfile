@@ -11,12 +11,12 @@ NODE_IP_START = 20
 LB_IP_START = 30
 
 Vagrant.configure("2") do |config|
-  config.vm.box = "ubuntu/bionic64"
+  config.vm.box = "ubuntu/jammy64"  # Ubuntu 22.04 LTS
   config.vm.box_check_update = false
 
   # Global provider settings (apply to all VMs)
   config.vm.provider "virtualbox" do |vb|
-    vb.gui = true     # 👈 enable GUI for troubleshooting
+    vb.gui = true     # enable GUI for troubleshooting
   end
 
   # Provision Master Nodes
