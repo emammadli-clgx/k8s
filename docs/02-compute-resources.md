@@ -2,44 +2,35 @@
 
 Note: You must have VirtualBox and Vagrant configured at this point
 
-Download this github repository and cd into the vagrant folder
+Once you have cloned this repository, `cd` into the `vagrant` directory.
 
-`git clone https://github.com/mmumshad/kubernetes-the-hard-way.git`
-
-CD into vagrant directory
-
-`cd kubernetes-the-hard-way\vagrant`
-
-Run Vagrant up
+Run `vagrant up` to provision the virtual machines.
 
 `vagrant up`
 
+This command will:
 
-This does the below:
+- Deploy 5 VMs: 2 master nodes, 2 worker nodes, and 1 load balancer, each named `kubernetes-ha-*`.
+    > These are the default settings. You can change them at the top of the `Vagrantfile`.
 
-- Deploys 5 VMs - 2 Master, 2 Worker and 1 Loadbalancer with the name 'kubernetes-ha-* '
-    > This is the default settings. This can be changed at the top of the Vagrant file
+- Set IP addresses in the `192.168.5.0/24` range.
 
-- Set's IP addresses in the range 192.168.5
+    | VM           | VM Name                | Purpose      | IP           | Forwarded Port |
+    |--------------|------------------------|--------------|--------------|----------------|
+    | master-1     | kubernetes-ha-master-1 | Master       | 192.168.5.11 | 2711           |
+    | master-2     | kubernetes-ha-master-2 | Master       | 192.168.5.12 | 2712           |
+    | worker-1     | kubernetes-ha-worker-1 | Worker       | 192.168.5.21 | 2721           |
+    | worker-2     | kubernetes-ha-worker-2 | Worker       | 192.168.5.22 | 2722           |
+    | loadbalancer | kubernetes-ha-lb       | LoadBalancer | 192.168.5.30 | 2730           |
 
-    | VM           |  VM Name               | Purpose       | IP           | Forwarded Port   |
-    | ------------ | ---------------------- |:-------------:| ------------:| ----------------:|
-    | master-1     | kubernetes-ha-master-1 | Master        | 192.168.5.11 |     2711         |
-    | master-2     | kubernetes-ha-master-2 | Master        | 192.168.5.12 |     2712         |
-    | worker-1     | kubernetes-ha-worker-1 | Worker        | 192.168.5.21 |     2730         |
-    | worker-2     | kubernetes-ha-worker-2 | Worker        | 192.168.5.22 |     2721         |
-    | loadbalancer | kubernetes-ha-lb       | LoadBalancer  | 192.168.5.30 |     2722         |
+    > These are the default settings and can be changed in the `Vagrantfile`.
 
-    > These are the default settings. These can be changed in the Vagrant file
+- Add a DNS entry (`8.8.8.8`) to each node for internet access.
 
-- Add's a DNS entry to each of the nodes to access internet
-    > DNS: 8.8.8.8
+- Install the latest stable version of Docker on the worker nodes.
 
-- Install's Docker on Worker nodes
-- Runs the below command on all nodes to allow for network forwarding in IP Tables.
-  This is required for kubernetes networking to function correctly.
-    > sysctl net.bridge.bridge-nf-call-iptables=1
-
+- Enable network forwarding in IPtables on all nodes, which is required for Kubernetes networking.
+    > `sysctl net.bridge.bridge-nf-call-iptables=1`
 
 ## SSH to the nodes
 
@@ -47,53 +38,41 @@ There are two ways to SSH into the nodes:
 
 ### 1. SSH using Vagrant
 
-  From the directory you ran the `vagrant up` command, run `vagrant ssh <vm>` for example `vagrant ssh master-1`.
-  > Note: Use VM field from the above table and not the vm name itself.
+From the `vagrant` directory, run `vagrant ssh <vm>` (e.g., `vagrant ssh master-1`).
+> **Note:** Use the VM name from the table above.
 
 ### 2. SSH Using SSH Client Tools
 
-Use your favourite SSH Terminal tool (putty).
+You can use any SSH client (like PuTTY).
 
-Use the above IP addresses. Username and password based SSH is disabled by default.
-Vagrant generates a private key for each of these VMs. It is placed under the .vagrant folder (in the directory you ran the `vagrant up` command from) at the below path for each VM:
+Use the IP addresses from the table. Password-based authentication is disabled. Vagrant generates a private key for each VM, located at the following path within the `vagrant` directory:
 
-**Private Key Path:** `.vagrant/machines/<machine name>/virtualbox/private_key`
+**Private Key Path:** `.vagrant/machines/<machine_name>/virtualbox/private_key`
 
 **Username:** `vagrant`
 
-
 ## Verify Environment
 
-- Ensure all VMs are up
-- Ensure VMs are assigned the above IP addresses
-- Ensure you can SSH into these VMs using the IP and private keys
-- Ensure the VMs can ping each other
-- Ensure the worker nodes have Docker installed on them. Version: 18.06
-  > command `sudo docker version`
+- Ensure all VMs are running.
+- Ensure each VM has the correct IP address.
+- Ensure you can SSH into each VM.
+- Ensure all VMs can ping each other.
+- Ensure the worker nodes have Docker installed. You can verify this by running `sudo docker version`.
 
 ## Troubleshooting Tips
 
-If any of the VMs failed to provision, or is not configured correct, delete the vm using the command:
+If a VM fails to provision or is not configured correctly, destroy it:
 
 `vagrant destroy <vm>`
 
-Then reprovision. Only the missing VMs will be re-provisioned
+Then, run `vagrant up` again to reprovision only the missing VMs.
 
-`vagrant up`
+Sometimes, `vagrant destroy` may fail to delete the VM's folder, causing an error like this:
 
+    VBoxManage.exe: error: Could not rename the directory '.../ubuntu-jammy-22.04-cloudimg' to '.../kubernetes-ha-worker-2' (VERR_ALREADY_EXISTS)
 
-Sometimes the delete does not delete the folder created for the vm and throws the below error.
-
-VirtualBox error:
-
-    VBoxManage.exe: error: Could not rename the directory 'D:\VirtualBox VMs\ubuntu-bionic-18.04-cloudimg-20190122_1552891552601_76806' to 'D:\VirtualBox VMs\kubernetes-ha-worker-2' to save the settings file (VERR_ALREADY_EXISTS)
-    VBoxManage.exe: error: Details: code E_FAIL (0x80004005), component SessionMachine, interface IMachine, callee IUnknown
-    VBoxManage.exe: error: Context: "SaveSettings()" at line 3105 of file VBoxManageModifyVM.cpp
-
-In such cases delete the VM, then delete teh VM folder and then re-provision
+In this case, after destroying the VM, manually delete the VM's directory from your VirtualBox VMs folder and then run `vagrant up`.
 
 `vagrant destroy <vm>`
-
-`rmdir "<path-to-vm-folder>\kubernetes-ha-worker-2"`
-
+`# Manually delete the VM folder`
 `vagrant up`

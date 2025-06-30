@@ -1,37 +1,31 @@
 # Run End-to-End Tests
 
-Install Go
+## Install Go
 
-```
-wget https://dl.google.com/go/go1.12.1.linux-amd64.tar.gz
+```bash
+wget -q --show-progress --https-only --timestamping 
+  https://go.dev/dl/go1.22.4.linux-amd64.tar.gz
 
-sudo tar -C /usr/local -xzf go1.12.1.linux-amd64.tar.gz
-export GOPATH="/home/vagrant/go"
-export PATH=$PATH:/usr/local/go/bin:$GOPATH/bin
+sudo tar -C /usr/local -xzf go1.22.4.linux-amd64.tar.gz
+export PATH=$PATH:/usr/local/go/bin
 ```
 
 ## Install kubetest
 
-```
-go get -v -u k8s.io/test-infra/kubetest
+```bash
+go install k8s.io/test-infra/kubetest@latest
 ```
 
-> Note: This may take a few minutes depending on your network speed
+> Note: This may take a few minutes depending on your network speed.
 
-## Extract the Version
+## Run Conformance Tests
 
-```
-kubetest --extract=v1.13.0
+```bash
+kubetest --extract=v1.29.2
 
 cd kubernetes
 
-export KUBE_MASTER_IP="192.168.5.11:6443"
-
-export KUBE_MASTER=master-1
-
 kubetest --test --provider=skeleton --test_args="--ginkgo.focus=\[Conformance\]" | tee test.out
-
 ```
-
 
 This could take about 1.5 to 2 hours. The number of tests run and passed will be displayed at the end.
