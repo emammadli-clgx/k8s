@@ -18,9 +18,9 @@ Print a hexdump of the `kubernetes-the-hard-way` secret stored in etcd:
 ```
 sudo ETCDCTL_API=3 etcdctl get \
   --endpoints=https://127.0.0.1:2379 \
-  --cacert=/etc/etcd/ca.pem \
-  --cert=/etc/etcd/etcd-server.pem \
-  --key=/etc/etcd/etcd-server-key.pem\
+  --cacert=/etc/etcd/ca.crt \
+  --cert=/etc/etcd/etcd-server.crt \
+  --key=/etc/etcd/etcd-server.key\
   /registry/secrets/default/kubernetes-the-hard-way | hexdump -C
 ```
 

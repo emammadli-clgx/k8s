@@ -1,63 +1,62 @@
-'''# Installing the Client Tools
+# Installing the Client Tools
 
-It is recommended to perform administrative tasks from a dedicated machine. In this guide, we will use `master-1` as our administrative node.
+First identify a system from where you will perform administrative tasks, such as creating certificates, kubeconfig files and distributing them to the different VMs.
+
+If you are on a Linux laptop, then your laptop could be this system. In my case I chose the master-1 node to perform administrative tasks. Whichever system you chose make sure that system is able to access all the provisioned VMs through SSH to copy files over.
 
 ## Access all VMs
 
-From the `master-1` node, generate an SSH key pair:
+Generate Key Pair on master-1 node
+`$ssh-keygen`
 
-```bash
-ssh-keygen -t rsa -b 2048
+Leave all settings to default.
+
+View the generated public key ID at:
+
+```
+$cat .ssh/id_rsa.pub
+ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQD......8+08b vagrant@master-1
 ```
 
-Leave the passphrase empty for ease of use.
+Move public key of master to all other VMs
 
-Now, copy the public key to all other nodes. You can do this easily with `ssh-copy-id`.
-
-First, install `ssh-copy-id` on `master-1`:
-
-```bash
-sudo apt-get update
-sudo apt-get install -y ssh-copy-id
+```
+$cat >> ~/.ssh/authorized_keys <<EOF
+ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQD......8+08b vagrant@master-1
+EOF
 ```
 
-Then, for each of the other nodes (`master-2`, `worker-1`, `worker-2`, `loadbalancer`), run the following command from `master-1`, replacing `<node-ip>` with the IP address of the target node:
-
-```bash
-ssh-copy-id vagrant@<node-ip>
-```
-
-For example:
-
-```bash
-ssh-copy-id vagrant@192.168.5.12
-ssh-copy-id vagrant@192.168.5.21
-ssh-copy-id vagrant@192.168.5.22
-ssh-copy-id vagrant@192.168.5.30
-```
 
 ## Install kubectl
 
-The [kubectl](https://kubernetes.io/docs/tasks/tools/install-kubectl) command-line utility is used to interact with the Kubernetes API Server.
+The [kubectl](https://kubernetes.io/docs/tasks/tools/install-kubectl). command line utility is used to interact with the Kubernetes API Server. Download and install `kubectl` from the official release binaries:
 
 ### Linux
 
-Install `kubectl` on `master-1` using the latest stable release:
+```
+wget https://storage.googleapis.com/kubernetes-release/release/v1.13.0/bin/linux/amd64/kubectl
+```
 
-```bash
-curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+```
 chmod +x kubectl
+```
+
+```
 sudo mv kubectl /usr/local/bin/
 ```
 
 ### Verification
 
-Verify the installed `kubectl` version:
+Verify `kubectl` version 1.13.0 or higher is installed:
 
-```bash
+```
 kubectl version --client
 ```
 
-The output should show the latest stable version of `kubectl`.
+> output
 
-Next: [Certificate Authority](04-certificate-authority.md)''
+```
+Client Version: version.Info{Major:"1", Minor:"13", GitVersion:"v1.13.0", GitCommit:"ddf47ac13c1a9483ea035a79cd7c10005ff21a6d", GitTreeState:"clean", BuildDate:"2018-12-03T21:04:45Z", GoVersion:"go1.11.2", Compiler:"gc", Platform:"linux/amd64"}
+```
+
+Next: [Certificate Authority](04-certificate-authority.md)
