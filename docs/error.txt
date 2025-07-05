@@ -1,0 +1,981 @@
+[INFO] 2025-06-30 21:39:25 - Executing on master-2: update-alternatives --set ip6tables /usr/sbin/ip6tables-legacy || true
+update-alternatives: using /usr/sbin/ip6tables-legacy to provide /usr/sbin/ip6tables (ip6tables) in manual mode
+[INFO] 2025-06-30 21:39:25 - Executing on master-2: update-alternatives --set arptables /usr/sbin/arptables-legacy || true
+update-alternatives: using /usr/sbin/arptables-legacy to provide /usr/sbin/arptables (arptables) in manual mode
+[INFO] 2025-06-30 21:39:25 - Executing on master-2: update-alternatives --set ebtables /usr/sbin/ebtables-legacy || true
+update-alternatives: using /usr/sbin/ebtables-legacy to provide /usr/sbin/ebtables (ebtables) in manual mode
+[INFO] 2025-06-30 21:39:26 - Disabling swap on master-2
+[INFO] 2025-06-30 21:39:26 - Executing on master-2: swapoff -a || true
+[SUCCESS] 2025-06-30 21:39:27 - Swap disabled on master-2
+[INFO] 2025-06-30 21:39:27 - Loading and configuring kernel modules on master-2
+[INFO] 2025-06-30 21:39:27 - Executing on master-2: modprobe overlay
+[INFO] 2025-06-30 21:39:27 - Executing on master-2: modprobe br_netfilter
+[INFO] 2025-06-30 21:39:28 - Executing on master-2: cat > /etc/modules-load.d/k8s.conf <<EOF
+overlay
+br_netfilter
+EOF
+[INFO] 2025-06-30 21:39:28 - Configuring sysctl parameters on master-2
+[INFO] 2025-06-30 21:39:28 - Executing on master-2: cat > /etc/sysctl.d/k8s.conf <<EOF
+net.bridge.bridge-nf-call-iptables = 1
+net.bridge.bridge-nf-call-ip6tables = 1
+net.ipv4.ip_forward = 1
+EOF
+[INFO] 2025-06-30 21:39:28 - Executing on master-2: sysctl --system >/dev/null 2>&1
+[INFO] 2025-06-30 21:39:29 - Disabling UFW firewall on master-2
+[INFO] 2025-06-30 21:39:29 - Executing on master-2: ufw --force disable || true
+Firewall stopped and disabled on system startup
+[SUCCESS] 2025-06-30 21:39:29 - System preparation completed on master-2
+
+=================================================================================
+PHASE 2: Installing Container Runtime
+=================================================================================
+
+[INFO] 2025-06-30 21:39:29 - Checking container runtime on worker-1
+[SUCCESS] 2025-06-30 21:39:31 - Docker is already installed and running on worker-1
+[INFO] 2025-06-30 21:39:31 - Configuring Docker for Kubernetes on worker-1
+[INFO] 2025-06-30 21:39:31 - Executing on worker-1: cp /etc/docker/daemon.json /etc/docker/daemon.json.backup 2>/dev/null || true
+[SUCCESS] 2025-06-30 21:39:32 - Docker is already configured with systemd cgroup driver on worker-1
+[INFO] 2025-06-30 21:39:32 - Checking container runtime on worker-2
+[SUCCESS] 2025-06-30 21:39:33 - Docker is already installed and running on worker-2
+[INFO] 2025-06-30 21:39:33 - Configuring Docker for Kubernetes on worker-2
+[INFO] 2025-06-30 21:39:33 - Executing on worker-2: cp /etc/docker/daemon.json /etc/docker/daemon.json.backup 2>/dev/null || true
+[SUCCESS] 2025-06-30 21:39:35 - Docker is already configured with systemd cgroup driver on worker-2
+[INFO] 2025-06-30 21:39:35 - Checking container runtime on lb
+[INFO] 2025-06-30 21:39:36 - Installing containerd on lb
+[INFO] 2025-06-30 21:39:36 - Executing on lb: apt-get remove -y docker docker-engine docker.io runc 2>/dev/null || true
+Reading package lists...
+Building dependency tree...
+Reading state information...
+[INFO] 2025-06-30 21:39:37 - Adding Docker repository on lb
+[INFO] 2025-06-30 21:39:37 - Executing on lb: install -m 0755 -d /etc/apt/keyrings
+[INFO] 2025-06-30 21:39:37 - Executing on lb: curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /tmp/docker.gpg
+[INFO] 2025-06-30 21:39:38 - Executing on lb: gpg --batch --yes --dearmor -o /etc/apt/keyrings/docker.gpg /tmp/docker.gpg
+[INFO] 2025-06-30 21:39:38 - Executing on lb: chmod a+r /etc/apt/keyrings/docker.gpg
+[INFO] 2025-06-30 21:39:39 - Executing on lb: rm -f /tmp/docker.gpg
+[INFO] 2025-06-30 21:39:39 - Executing on lb: apt-get update -qq
+[INFO] 2025-06-30 21:39:45 - Executing on lb: DEBIAN_FRONTEND=noninteractive apt-get install -y -qq containerd.io
+Selecting previously unselected package containerd.io.
+(Reading database ... 64353 files and directories currently installed.)
+Preparing to unpack .../containerd.io_1.7.27-1_amd64.deb ...
+Unpacking containerd.io (1.7.27-1) ...
+Setting up containerd.io (1.7.27-1) ...
+Created symlink /etc/systemd/system/multi-user.target.wants/containerd.service → /lib/systemd/system/containerd.service.
+Processing triggers for man-db (2.10.2-1) ...
+NEEDRESTART-VER: 3.5
+NEEDRESTART-KCUR: 5.15.0-142-generic
+NEEDRESTART-KEXP: 5.15.0-142-generic
+NEEDRESTART-KSTA: 1
+[INFO] 2025-06-30 21:40:01 - Configuring containerd on lb
+[INFO] 2025-06-30 21:40:01 - Executing on lb: mkdir -p /etc/containerd
+[INFO] 2025-06-30 21:40:02 - Executing on lb: containerd config default > /etc/containerd/config.toml
+[INFO] 2025-06-30 21:40:02 - Executing on lb: sed -i 's/SystemdCgroup = false/SystemdCgroup = true/g' /etc/containerd/config.toml
+[INFO] 2025-06-30 21:40:03 - Executing on lb: systemctl restart containerd
+[INFO] 2025-06-30 21:40:03 - Executing on lb: systemctl enable containerd
+[SUCCESS] 2025-06-30 21:40:10 - containerd is running on lb
+[INFO] 2025-06-30 21:40:10 - Installing crictl on lb
+[INFO] 2025-06-30 21:40:10 - Executing on lb: mkdir -p /tmp/crictl-install
+[INFO] 2025-06-30 21:40:10 - Executing on lb: cd /tmp/crictl-install && curl -L --fail --retry 3 --retry-delay 5 -o crictl.tar.gz https://github.com/kubernetes-sigs/cri-tools/releases/download/v1.29.0/crictl-v1.29.0-linux-amd64.tar.gz
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0
+100 23.2M  100 23.2M    0     0  6809k      0  0:00:03  0:00:03 --:--:-- 10.0M
+[INFO] 2025-06-30 21:40:14 - Executing on lb: cd /tmp/crictl-install && file crictl.tar.gz | grep -q 'gzip compressed'
+[SUCCESS] 2025-06-30 21:40:15 - crictl downloaded successfully on lb
+[INFO] 2025-06-30 21:40:15 - Executing on lb: cd /tmp/crictl-install && tar zxf crictl.tar.gz
+[INFO] 2025-06-30 21:40:16 - Executing on lb: cd /tmp/crictl-install && mv crictl /usr/local/bin/
+[INFO] 2025-06-30 21:40:16 - Executing on lb: chmod +x /usr/local/bin/crictl
+[INFO] 2025-06-30 21:40:16 - Executing on lb: /usr/local/bin/crictl --version >/dev/null 2>&1
+[SUCCESS] 2025-06-30 21:40:17 - crictl installed successfully on lb
+[INFO] 2025-06-30 21:40:17 - Executing on lb: rm -rf /tmp/crictl-install
+[INFO] 2025-06-30 21:40:18 - Executing on lb: cat > /etc/crictl.yaml <<EOF
+runtime-endpoint: unix:///var/run/containerd/containerd.sock
+image-endpoint: unix:///var/run/containerd/containerd.sock
+timeout: 2
+debug: false
+pull-image-on-create: false
+EOF
+[SUCCESS] 2025-06-30 21:40:18 - Container runtime installed on lb
+[INFO] 2025-06-30 21:40:18 - Checking container runtime on master-1
+[INFO] 2025-06-30 21:40:18 - Installing containerd on master-1
+[INFO] 2025-06-30 21:40:18 - Executing on master-1: apt-get remove -y docker docker-engine docker.io runc 2>/dev/null || true
+Reading package lists... Done
+Building dependency tree... Done
+Reading state information... Done
+[INFO] 2025-06-30 21:40:18 - Adding Docker repository on master-1
+[INFO] 2025-06-30 21:40:18 - Executing on master-1: install -m 0755 -d /etc/apt/keyrings
+[INFO] 2025-06-30 21:40:18 - Executing on master-1: curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /tmp/docker.gpg
+[INFO] 2025-06-30 21:40:19 - Executing on master-1: gpg --batch --yes --dearmor -o /etc/apt/keyrings/docker.gpg /tmp/docker.gpg
+[INFO] 2025-06-30 21:40:19 - Executing on master-1: chmod a+r /etc/apt/keyrings/docker.gpg
+[INFO] 2025-06-30 21:40:19 - Executing on master-1: rm -f /tmp/docker.gpg
+[INFO] 2025-06-30 21:40:19 - Executing on master-1: apt-get update -qq
+[INFO] 2025-06-30 21:40:22 - Executing on master-1: DEBIAN_FRONTEND=noninteractive apt-get install -y -qq containerd.io
+Selecting previously unselected package containerd.io.
+(Reading database ... 64353 files and directories currently installed.)
+Preparing to unpack .../containerd.io_1.7.27-1_amd64.deb ...
+Unpacking containerd.io (1.7.27-1) ...
+Setting up containerd.io (1.7.27-1) ...
+Created symlink /etc/systemd/system/multi-user.target.wants/containerd.service → /lib/systemd/system/containerd.service.
+Processing triggers for man-db (2.10.2-1) ...
+NEEDRESTART-VER: 3.5
+NEEDRESTART-KCUR: 5.15.0-142-generic
+NEEDRESTART-KEXP: 5.15.0-142-generic
+NEEDRESTART-KSTA: 1
+[INFO] 2025-06-30 21:40:35 - Configuring containerd on master-1
+[INFO] 2025-06-30 21:40:35 - Executing on master-1: mkdir -p /etc/containerd
+[INFO] 2025-06-30 21:40:35 - Executing on master-1: containerd config default > /etc/containerd/config.toml
+[INFO] 2025-06-30 21:40:35 - Executing on master-1: sed -i 's/SystemdCgroup = false/SystemdCgroup = true/g' /etc/containerd/config.toml
+[INFO] 2025-06-30 21:40:35 - Executing on master-1: systemctl restart containerd
+[INFO] 2025-06-30 21:40:36 - Executing on master-1: systemctl enable containerd
+[SUCCESS] 2025-06-30 21:40:41 - containerd is running on master-1
+[INFO] 2025-06-30 21:40:41 - Installing crictl on master-1
+[INFO] 2025-06-30 21:40:41 - Executing on master-1: mkdir -p /tmp/crictl-install
+[INFO] 2025-06-30 21:40:41 - Executing on master-1: cd /tmp/crictl-install && curl -L --fail --retry 3 --retry-delay 5 -o crictl.tar.gz https://github.com/kubernetes-sigs/cri-tools/releases/download/v1.29.0/crictl-v1.29.0-linux-amd64.tar.gz
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0
+100 23.2M  100 23.2M    0     0  6387k      0  0:00:03  0:00:03 --:--:-- 8664k
+[INFO] 2025-06-30 21:40:45 - Executing on master-1: cd /tmp/crictl-install && file crictl.tar.gz | grep -q 'gzip compressed'
+[SUCCESS] 2025-06-30 21:40:45 - crictl downloaded successfully on master-1
+[INFO] 2025-06-30 21:40:45 - Executing on master-1: cd /tmp/crictl-install && tar zxf crictl.tar.gz
+[INFO] 2025-06-30 21:40:45 - Executing on master-1: cd /tmp/crictl-install && mv crictl /usr/local/bin/
+[INFO] 2025-06-30 21:40:45 - Executing on master-1: chmod +x /usr/local/bin/crictl
+[INFO] 2025-06-30 21:40:45 - Executing on master-1: /usr/local/bin/crictl --version >/dev/null 2>&1
+[SUCCESS] 2025-06-30 21:40:46 - crictl installed successfully on master-1
+[INFO] 2025-06-30 21:40:46 - Executing on master-1: rm -rf /tmp/crictl-install
+[INFO] 2025-06-30 21:40:46 - Executing on master-1: cat > /etc/crictl.yaml <<EOF
+runtime-endpoint: unix:///var/run/containerd/containerd.sock
+image-endpoint: unix:///var/run/containerd/containerd.sock
+timeout: 2
+debug: false
+pull-image-on-create: false
+EOF
+[SUCCESS] 2025-06-30 21:40:46 - Container runtime installed on master-1
+[INFO] 2025-06-30 21:40:46 - Checking container runtime on master-2
+[INFO] 2025-06-30 21:40:47 - Installing containerd on master-2
+[INFO] 2025-06-30 21:40:47 - Executing on master-2: apt-get remove -y docker docker-engine docker.io runc 2>/dev/null || true
+Reading package lists...
+Building dependency tree...
+Reading state information...
+[INFO] 2025-06-30 21:40:47 - Adding Docker repository on master-2
+[INFO] 2025-06-30 21:40:47 - Executing on master-2: install -m 0755 -d /etc/apt/keyrings
+[INFO] 2025-06-30 21:40:48 - Executing on master-2: curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /tmp/docker.gpg
+[INFO] 2025-06-30 21:40:48 - Executing on master-2: gpg --batch --yes --dearmor -o /etc/apt/keyrings/docker.gpg /tmp/docker.gpg
+[INFO] 2025-06-30 21:40:49 - Executing on master-2: chmod a+r /etc/apt/keyrings/docker.gpg
+[INFO] 2025-06-30 21:40:49 - Executing on master-2: rm -f /tmp/docker.gpg
+[INFO] 2025-06-30 21:40:50 - Executing on master-2: apt-get update -qq
+[INFO] 2025-06-30 21:40:53 - Executing on master-2: DEBIAN_FRONTEND=noninteractive apt-get install -y -qq containerd.io
+Selecting previously unselected package containerd.io.
+(Reading database ... 64353 files and directories currently installed.)
+Preparing to unpack .../containerd.io_1.7.27-1_amd64.deb ...
+Unpacking containerd.io (1.7.27-1) ...
+Setting up containerd.io (1.7.27-1) ...
+Created symlink /etc/systemd/system/multi-user.target.wants/containerd.service → /lib/systemd/system/containerd.service.
+Processing triggers for man-db (2.10.2-1) ...
+NEEDRESTART-VER: 3.5
+NEEDRESTART-KCUR: 5.15.0-142-generic
+NEEDRESTART-KEXP: 5.15.0-142-generic
+NEEDRESTART-KSTA: 1
+[INFO] 2025-06-30 21:41:03 - Configuring containerd on master-2
+[INFO] 2025-06-30 21:41:03 - Executing on master-2: mkdir -p /etc/containerd
+[INFO] 2025-06-30 21:41:04 - Executing on master-2: containerd config default > /etc/containerd/config.toml
+[INFO] 2025-06-30 21:41:04 - Executing on master-2: sed -i 's/SystemdCgroup = false/SystemdCgroup = true/g' /etc/containerd/config.toml
+[INFO] 2025-06-30 21:41:04 - Executing on master-2: systemctl restart containerd
+[INFO] 2025-06-30 21:41:05 - Executing on master-2: systemctl enable containerd
+[SUCCESS] 2025-06-30 21:41:11 - containerd is running on master-2
+[INFO] 2025-06-30 21:41:11 - Installing crictl on master-2
+[INFO] 2025-06-30 21:41:11 - Executing on master-2: mkdir -p /tmp/crictl-install
+[INFO] 2025-06-30 21:41:11 - Executing on master-2: cd /tmp/crictl-install && curl -L --fail --retry 3 --retry-delay 5 -o crictl.tar.gz https://github.com/kubernetes-sigs/cri-tools/releases/download/v1.29.0/crictl-v1.29.0-linux-amd64.tar.gz
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0
+100 23.2M  100 23.2M    0     0  7503k      0  0:00:03  0:00:03 --:--:--  9.9M
+[INFO] 2025-06-30 21:41:15 - Executing on master-2: cd /tmp/crictl-install && file crictl.tar.gz | grep -q 'gzip compressed'
+[SUCCESS] 2025-06-30 21:41:15 - crictl downloaded successfully on master-2
+[INFO] 2025-06-30 21:41:15 - Executing on master-2: cd /tmp/crictl-install && tar zxf crictl.tar.gz
+[INFO] 2025-06-30 21:41:16 - Executing on master-2: cd /tmp/crictl-install && mv crictl /usr/local/bin/
+[INFO] 2025-06-30 21:41:16 - Executing on master-2: chmod +x /usr/local/bin/crictl
+[INFO] 2025-06-30 21:41:16 - Executing on master-2: /usr/local/bin/crictl --version >/dev/null 2>&1
+[SUCCESS] 2025-06-30 21:41:16 - crictl installed successfully on master-2
+[INFO] 2025-06-30 21:41:16 - Executing on master-2: rm -rf /tmp/crictl-install
+[INFO] 2025-06-30 21:41:17 - Executing on master-2: cat > /etc/crictl.yaml <<EOF
+runtime-endpoint: unix:///var/run/containerd/containerd.sock
+image-endpoint: unix:///var/run/containerd/containerd.sock
+timeout: 2
+debug: false
+pull-image-on-create: false
+EOF
+[SUCCESS] 2025-06-30 21:41:17 - Container runtime installed on master-2
+
+=================================================================================
+PHASE 3: Installing Kubernetes Packages
+=================================================================================
+
+[INFO] 2025-06-30 21:41:17 - Installing Kubernetes packages on worker-1
+[INFO] 2025-06-30 21:41:17 - Adding Kubernetes repository on worker-1
+[INFO] 2025-06-30 21:41:17 - Executing on worker-1: mkdir -p /etc/apt/keyrings
+[INFO] 2025-06-30 21:41:18 - Executing on worker-1: curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.29/deb/Release.key -o /tmp/kubernetes.gpg
+[INFO] 2025-06-30 21:41:19 - Executing on worker-1: gpg --batch --yes --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg /tmp/kubernetes.gpg
+[INFO] 2025-06-30 21:41:19 - Executing on worker-1: chmod a+r /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+[INFO] 2025-06-30 21:41:19 - Executing on worker-1: rm -f /tmp/kubernetes.gpg
+[INFO] 2025-06-30 21:41:19 - Executing on worker-1: echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.29/deb/ /' > /etc/apt/sources.list.d/kubernetes.list
+[INFO] 2025-06-30 21:41:20 - Executing on worker-1: apt-get update -qq
+[INFO] 2025-06-30 21:41:24 - Installing kubeadm, kubelet, kubectl on worker-1
+[INFO] 2025-06-30 21:41:24 - Executing on worker-1: DEBIAN_FRONTEND=noninteractive apt-get install -y -qq kubelet kubeadm kubectl
+Selecting previously unselected package cri-tools.
+(Reading database ... 64620 files and directories currently installed.)
+Preparing to unpack .../cri-tools_1.29.0-1.1_amd64.deb ...
+Unpacking cri-tools (1.29.0-1.1) ...
+Selecting previously unselected package kubernetes-cni.
+Preparing to unpack .../kubernetes-cni_1.3.0-1.1_amd64.deb ...
+Unpacking kubernetes-cni (1.3.0-1.1) ...
+Selecting previously unselected package kubelet.
+Preparing to unpack .../kubelet_1.29.15-1.1_amd64.deb ...
+Unpacking kubelet (1.29.15-1.1) ...
+Selecting previously unselected package kubectl.
+Preparing to unpack .../kubectl_1.29.15-1.1_amd64.deb ...
+Unpacking kubectl (1.29.15-1.1) ...
+Selecting previously unselected package kubeadm.
+Preparing to unpack .../kubeadm_1.29.15-1.1_amd64.deb ...
+Unpacking kubeadm (1.29.15-1.1) ...
+Setting up kubectl (1.29.15-1.1) ...
+Setting up cri-tools (1.29.0-1.1) ...
+Setting up kubernetes-cni (1.3.0-1.1) ...
+Setting up kubelet (1.29.15-1.1) ...
+Setting up kubeadm (1.29.15-1.1) ...
+NEEDRESTART-VER: 3.5
+NEEDRESTART-KCUR: 5.15.0-142-generic
+NEEDRESTART-KEXP: 5.15.0-142-generic
+NEEDRESTART-KSTA: 1
+[INFO] 2025-06-30 21:41:49 - Executing on worker-1: apt-mark hold kubelet kubeadm kubectl
+kubelet set on hold.
+kubeadm set on hold.
+kubectl set on hold.
+[INFO] 2025-06-30 21:41:49 - Executing on worker-1: systemctl enable kubelet
+[INFO] 2025-06-30 21:41:50 - Executing on worker-1: mkdir -p /etc/systemd/system/kubelet.service.d
+[INFO] 2025-06-30 21:41:51 - Executing on worker-1: cat > /etc/systemd/system/kubelet.service.d/20-low-resource.conf <<EOF
+[Service]
+Environment="KUBELET_EXTRA_ARGS=--feature-gates=NodeSwap=false --fail-swap-on=false --container-runtime=docker"
+EOF
+--fail-swap-on=false: line 3: warning: here-document at line 1 delimited by end-of-file (wanted `EOF')
+[INFO] 2025-06-30 21:41:52 - Executing on worker-1: systemctl daemon-reload
+[SUCCESS] 2025-06-30 21:41:53 - kubeadm installed on worker-1: 
+[SUCCESS] 2025-06-30 21:41:54 - kubelet installed on worker-1: 
+[SUCCESS] 2025-06-30 21:41:55 - kubectl installed on worker-1: 
+[INFO] 2025-06-30 21:41:55 - Installing Kubernetes packages on worker-2
+[INFO] 2025-06-30 21:41:55 - Adding Kubernetes repository on worker-2
+[INFO] 2025-06-30 21:41:55 - Executing on worker-2: mkdir -p /etc/apt/keyrings
+[INFO] 2025-06-30 21:41:56 - Executing on worker-2: curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.29/deb/Release.key -o /tmp/kubernetes.gpg
+[INFO] 2025-06-30 21:41:57 - Executing on worker-2: gpg --batch --yes --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg /tmp/kubernetes.gpg
+[INFO] 2025-06-30 21:41:58 - Executing on worker-2: chmod a+r /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+[INFO] 2025-06-30 21:41:58 - Executing on worker-2: rm -f /tmp/kubernetes.gpg
+[INFO] 2025-06-30 21:41:58 - Executing on worker-2: echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.29/deb/ /' > /etc/apt/sources.list.d/kubernetes.list
+[INFO] 2025-06-30 21:41:59 - Executing on worker-2: apt-get update -qq
+[INFO] 2025-06-30 21:42:06 - Installing kubeadm, kubelet, kubectl on worker-2
+[INFO] 2025-06-30 21:42:06 - Executing on worker-2: DEBIAN_FRONTEND=noninteractive apt-get install -y -qq kubelet kubeadm kubectl
+Selecting previously unselected package cri-tools.
+(Reading database ... 64620 files and directories currently installed.)
+Preparing to unpack .../cri-tools_1.29.0-1.1_amd64.deb ...
+Unpacking cri-tools (1.29.0-1.1) ...
+Selecting previously unselected package kubernetes-cni.
+Preparing to unpack .../kubernetes-cni_1.3.0-1.1_amd64.deb ...
+Unpacking kubernetes-cni (1.3.0-1.1) ...
+Selecting previously unselected package kubelet.
+Preparing to unpack .../kubelet_1.29.15-1.1_amd64.deb ...
+Unpacking kubelet (1.29.15-1.1) ...
+Selecting previously unselected package kubectl.
+Preparing to unpack .../kubectl_1.29.15-1.1_amd64.deb ...
+Unpacking kubectl (1.29.15-1.1) ...
+Selecting previously unselected package kubeadm.
+Preparing to unpack .../kubeadm_1.29.15-1.1_amd64.deb ...
+Unpacking kubeadm (1.29.15-1.1) ...
+Setting up kubectl (1.29.15-1.1) ...
+Setting up cri-tools (1.29.0-1.1) ...
+Setting up kubernetes-cni (1.3.0-1.1) ...
+Setting up kubelet (1.29.15-1.1) ...
+Setting up kubeadm (1.29.15-1.1) ...
+NEEDRESTART-VER: 3.5
+NEEDRESTART-KCUR: 5.15.0-142-generic
+NEEDRESTART-KEXP: 5.15.0-142-generic
+NEEDRESTART-KSTA: 1
+[INFO] 2025-06-30 21:42:32 - Executing on worker-2: apt-mark hold kubelet kubeadm kubectl
+kubelet set on hold.
+kubeadm set on hold.
+kubectl set on hold.
+[INFO] 2025-06-30 21:42:33 - Executing on worker-2: systemctl enable kubelet
+[INFO] 2025-06-30 21:42:34 - Executing on worker-2: mkdir -p /etc/systemd/system/kubelet.service.d
+[INFO] 2025-06-30 21:42:35 - Executing on worker-2: cat > /etc/systemd/system/kubelet.service.d/20-low-resource.conf <<EOF
+[Service]
+Environment="KUBELET_EXTRA_ARGS=--feature-gates=NodeSwap=false --fail-swap-on=false --container-runtime=docker"
+EOF
+--fail-swap-on=false: line 3: warning: here-document at line 1 delimited by end-of-file (wanted `EOF')
+[INFO] 2025-06-30 21:42:35 - Executing on worker-2: systemctl daemon-reload
+[SUCCESS] 2025-06-30 21:42:37 - kubeadm installed on worker-2: 
+[SUCCESS] 2025-06-30 21:42:38 - kubelet installed on worker-2: 
+[SUCCESS] 2025-06-30 21:42:39 - kubectl installed on worker-2: 
+[INFO] 2025-06-30 21:42:39 - Installing Kubernetes packages on lb
+[INFO] 2025-06-30 21:42:39 - Adding Kubernetes repository on lb
+[INFO] 2025-06-30 21:42:39 - Executing on lb: mkdir -p /etc/apt/keyrings
+[INFO] 2025-06-30 21:42:40 - Executing on lb: curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.29/deb/Release.key -o /tmp/kubernetes.gpg
+[INFO] 2025-06-30 21:42:40 - Executing on lb: gpg --batch --yes --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg /tmp/kubernetes.gpg
+[INFO] 2025-06-30 21:42:41 - Executing on lb: chmod a+r /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+[INFO] 2025-06-30 21:42:41 - Executing on lb: rm -f /tmp/kubernetes.gpg
+[INFO] 2025-06-30 21:42:42 - Executing on lb: echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.29/deb/ /' > /etc/apt/sources.list.d/kubernetes.list
+[INFO] 2025-06-30 21:42:42 - Executing on lb: apt-get update -qq
+[INFO] 2025-06-30 21:42:48 - Installing kubeadm, kubelet, kubectl on lb
+[INFO] 2025-06-30 21:42:48 - Executing on lb: DEBIAN_FRONTEND=noninteractive apt-get install -y -qq kubelet kubeadm kubectl
+Selecting previously unselected package cri-tools.
+(Reading database ... 64369 files and directories currently installed.)
+Preparing to unpack .../cri-tools_1.29.0-1.1_amd64.deb ...
+Unpacking cri-tools (1.29.0-1.1) ...
+Selecting previously unselected package kubernetes-cni.
+Preparing to unpack .../kubernetes-cni_1.3.0-1.1_amd64.deb ...
+Unpacking kubernetes-cni (1.3.0-1.1) ...
+Selecting previously unselected package kubelet.
+Preparing to unpack .../kubelet_1.29.15-1.1_amd64.deb ...
+Unpacking kubelet (1.29.15-1.1) ...
+Selecting previously unselected package kubectl.
+Preparing to unpack .../kubectl_1.29.15-1.1_amd64.deb ...
+Unpacking kubectl (1.29.15-1.1) ...
+Selecting previously unselected package kubeadm.
+Preparing to unpack .../kubeadm_1.29.15-1.1_amd64.deb ...
+Unpacking kubeadm (1.29.15-1.1) ...
+Setting up kubectl (1.29.15-1.1) ...
+Setting up cri-tools (1.29.0-1.1) ...
+Setting up kubernetes-cni (1.3.0-1.1) ...
+Setting up kubelet (1.29.15-1.1) ...
+Setting up kubeadm (1.29.15-1.1) ...
+NEEDRESTART-VER: 3.5
+NEEDRESTART-KCUR: 5.15.0-142-generic
+NEEDRESTART-KEXP: 5.15.0-142-generic
+NEEDRESTART-KSTA: 1
+[INFO] 2025-06-30 21:43:14 - Executing on lb: apt-mark hold kubelet kubeadm kubectl
+kubelet set on hold.
+kubeadm set on hold.
+kubectl set on hold.
+[INFO] 2025-06-30 21:43:15 - Executing on lb: systemctl enable kubelet
+[INFO] 2025-06-30 21:43:15 - Executing on lb: mkdir -p /etc/systemd/system/kubelet.service.d
+[INFO] 2025-06-30 21:43:16 - Executing on lb: cat > /etc/systemd/system/kubelet.service.d/20-low-resource.conf <<EOF
+[Service]
+Environment="KUBELET_EXTRA_ARGS=--feature-gates=NodeSwap=false --fail-swap-on=false --container-runtime=remote --container-runtime-endpoint=unix:///var/run/containerd/containerd.sock"
+EOF
+--fail-swap-on=false: line 3: warning: here-document at line 1 delimited by end-of-file (wanted `EOF')
+[INFO] 2025-06-30 21:43:16 - Executing on lb: systemctl daemon-reload
+[SUCCESS] 2025-06-30 21:43:18 - kubeadm installed on lb: 
+[SUCCESS] 2025-06-30 21:43:19 - kubelet installed on lb: 
+[SUCCESS] 2025-06-30 21:43:20 - kubectl installed on lb: 
+[INFO] 2025-06-30 21:43:20 - Installing Kubernetes packages on master-1
+[INFO] 2025-06-30 21:43:20 - Adding Kubernetes repository on master-1
+[INFO] 2025-06-30 21:43:20 - Executing on master-1: mkdir -p /etc/apt/keyrings
+[INFO] 2025-06-30 21:43:20 - Executing on master-1: curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.29/deb/Release.key -o /tmp/kubernetes.gpg
+[INFO] 2025-06-30 21:43:20 - Executing on master-1: gpg --batch --yes --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg /tmp/kubernetes.gpg
+[INFO] 2025-06-30 21:43:20 - Executing on master-1: chmod a+r /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+[INFO] 2025-06-30 21:43:20 - Executing on master-1: rm -f /tmp/kubernetes.gpg
+[INFO] 2025-06-30 21:43:20 - Executing on master-1: echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.29/deb/ /' > /etc/apt/sources.list.d/kubernetes.list
+[INFO] 2025-06-30 21:43:20 - Executing on master-1: apt-get update -qq
+[INFO] 2025-06-30 21:43:24 - Installing kubeadm, kubelet, kubectl on master-1
+[INFO] 2025-06-30 21:43:24 - Executing on master-1: DEBIAN_FRONTEND=noninteractive apt-get install -y -qq kubelet kubeadm kubectl
+Selecting previously unselected package cri-tools.
+(Reading database ... 64369 files and directories currently installed.)
+Preparing to unpack .../cri-tools_1.29.0-1.1_amd64.deb ...
+Unpacking cri-tools (1.29.0-1.1) ...
+Selecting previously unselected package kubernetes-cni.
+Preparing to unpack .../kubernetes-cni_1.3.0-1.1_amd64.deb ...
+Unpacking kubernetes-cni (1.3.0-1.1) ...
+Selecting previously unselected package kubelet.
+Preparing to unpack .../kubelet_1.29.15-1.1_amd64.deb ...
+Unpacking kubelet (1.29.15-1.1) ...
+Selecting previously unselected package kubectl.
+Preparing to unpack .../kubectl_1.29.15-1.1_amd64.deb ...
+Unpacking kubectl (1.29.15-1.1) ...
+Selecting previously unselected package kubeadm.
+Preparing to unpack .../kubeadm_1.29.15-1.1_amd64.deb ...
+Unpacking kubeadm (1.29.15-1.1) ...
+Setting up kubectl (1.29.15-1.1) ...
+Setting up cri-tools (1.29.0-1.1) ...
+Setting up kubernetes-cni (1.3.0-1.1) ...
+Setting up kubelet (1.29.15-1.1) ...
+Setting up kubeadm (1.29.15-1.1) ...
+NEEDRESTART-VER: 3.5
+NEEDRESTART-KCUR: 5.15.0-142-generic
+NEEDRESTART-KEXP: 5.15.0-142-generic
+NEEDRESTART-KSTA: 1
+[INFO] 2025-06-30 21:43:49 - Executing on master-1: apt-mark hold kubelet kubeadm kubectl
+kubelet set on hold.
+kubeadm set on hold.
+kubectl set on hold.
+[INFO] 2025-06-30 21:43:49 - Executing on master-1: systemctl enable kubelet
+[INFO] 2025-06-30 21:43:49 - Executing on master-1: mkdir -p /etc/systemd/system/kubelet.service.d
+[INFO] 2025-06-30 21:43:49 - Executing on master-1: cat > /etc/systemd/system/kubelet.service.d/20-low-resource.conf <<EOF
+[Service]
+Environment="KUBELET_EXTRA_ARGS=--feature-gates=NodeSwap=false --fail-swap-on=false --container-runtime=remote --container-runtime-endpoint=unix:///var/run/containerd/containerd.sock"
+EOF
+[INFO] 2025-06-30 21:43:49 - Executing on master-1: systemctl daemon-reload
+[SUCCESS] 2025-06-30 21:43:50 - kubeadm installed on master-1: unknown
+[SUCCESS] 2025-06-30 21:44:35 - kubelet installed on master-1: unknown
+[SUCCESS] 2025-06-30 21:44:35 - kubectl installed on master-1: unknown
+[INFO] 2025-06-30 21:44:35 - Installing Kubernetes packages on master-2
+[INFO] 2025-06-30 21:44:35 - Adding Kubernetes repository on master-2
+[INFO] 2025-06-30 21:44:35 - Executing on master-2: mkdir -p /etc/apt/keyrings
+[INFO] 2025-06-30 21:44:36 - Executing on master-2: curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.29/deb/Release.key -o /tmp/kubernetes.gpg
+[INFO] 2025-06-30 21:44:37 - Executing on master-2: gpg --batch --yes --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg /tmp/kubernetes.gpg
+[INFO] 2025-06-30 21:44:37 - Executing on master-2: chmod a+r /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+[INFO] 2025-06-30 21:44:37 - Executing on master-2: rm -f /tmp/kubernetes.gpg
+[INFO] 2025-06-30 21:44:38 - Executing on master-2: echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.29/deb/ /' > /etc/apt/sources.list.d/kubernetes.list
+[INFO] 2025-06-30 21:44:38 - Executing on master-2: apt-get update -qq
+[INFO] 2025-06-30 21:44:41 - Installing kubeadm, kubelet, kubectl on master-2
+[INFO] 2025-06-30 21:44:41 - Executing on master-2: DEBIAN_FRONTEND=noninteractive apt-get install -y -qq kubelet kubeadm kubectl
+Selecting previously unselected package cri-tools.
+(Reading database ... 64369 files and directories currently installed.)
+Preparing to unpack .../cri-tools_1.29.0-1.1_amd64.deb ...
+Unpacking cri-tools (1.29.0-1.1) ...
+Selecting previously unselected package kubernetes-cni.
+Preparing to unpack .../kubernetes-cni_1.3.0-1.1_amd64.deb ...
+Unpacking kubernetes-cni (1.3.0-1.1) ...
+Selecting previously unselected package kubelet.
+Preparing to unpack .../kubelet_1.29.15-1.1_amd64.deb ...
+Unpacking kubelet (1.29.15-1.1) ...
+Selecting previously unselected package kubectl.
+Preparing to unpack .../kubectl_1.29.15-1.1_amd64.deb ...
+Unpacking kubectl (1.29.15-1.1) ...
+Selecting previously unselected package kubeadm.
+Preparing to unpack .../kubeadm_1.29.15-1.1_amd64.deb ...
+Unpacking kubeadm (1.29.15-1.1) ...
+Setting up kubectl (1.29.15-1.1) ...
+Setting up cri-tools (1.29.0-1.1) ...
+Setting up kubernetes-cni (1.3.0-1.1) ...
+Setting up kubelet (1.29.15-1.1) ...
+Setting up kubeadm (1.29.15-1.1) ...
+NEEDRESTART-VER: 3.5
+NEEDRESTART-KCUR: 5.15.0-142-generic
+NEEDRESTART-KEXP: 5.15.0-142-generic
+NEEDRESTART-KSTA: 1
+[INFO] 2025-06-30 21:45:08 - Executing on master-2: apt-mark hold kubelet kubeadm kubectl
+kubelet set on hold.
+kubeadm set on hold.
+kubectl set on hold.
+[INFO] 2025-06-30 21:45:08 - Executing on master-2: systemctl enable kubelet
+[INFO] 2025-06-30 21:45:09 - Executing on master-2: mkdir -p /etc/systemd/system/kubelet.service.d
+[INFO] 2025-06-30 21:45:09 - Executing on master-2: cat > /etc/systemd/system/kubelet.service.d/20-low-resource.conf <<EOF
+[Service]
+Environment="KUBELET_EXTRA_ARGS=--feature-gates=NodeSwap=false --fail-swap-on=false --container-runtime=remote --container-runtime-endpoint=unix:///var/run/containerd/containerd.sock"
+EOF
+--fail-swap-on=false: line 3: warning: here-document at line 1 delimited by end-of-file (wanted `EOF')
+[INFO] 2025-06-30 21:45:10 - Executing on master-2: systemctl daemon-reload
+[SUCCESS] 2025-06-30 21:45:11 - kubeadm installed on master-2: 
+[SUCCESS] 2025-06-30 21:45:12 - kubelet installed on master-2: 
+[SUCCESS] 2025-06-30 21:45:13 - kubectl installed on master-2: 
+
+=================================================================================
+PHASE 4: Setting up Load Balancer (HAProxy)
+=================================================================================
+
+[INFO] 2025-06-30 21:45:13 - Installing and configuring HAProxy on lb node
+[INFO] 2025-06-30 21:45:13 - Executing on lb: DEBIAN_FRONTEND=noninteractive apt-get install -y -qq haproxy
+Selecting previously unselected package liblua5.3-0:amd64.
+(Reading database ... 64421 files and directories currently installed.)
+Preparing to unpack .../liblua5.3-0_5.3.6-1build1_amd64.deb ...
+Unpacking liblua5.3-0:amd64 (5.3.6-1build1) ...
+Selecting previously unselected package haproxy.
+Preparing to unpack .../haproxy_2.4.24-0ubuntu0.22.04.2_amd64.deb ...
+Unpacking haproxy (2.4.24-0ubuntu0.22.04.2) ...
+Setting up liblua5.3-0:amd64 (5.3.6-1build1) ...
+Setting up haproxy (2.4.24-0ubuntu0.22.04.2) ...
+Created symlink /etc/systemd/system/multi-user.target.wants/haproxy.service → /lib/systemd/system/haproxy.service.
+Processing triggers for libc-bin (2.35-0ubuntu3.10) ...
+Processing triggers for rsyslog (8.2112.0-2ubuntu2.2) ...
+Processing triggers for man-db (2.10.2-1) ...
+NEEDRESTART-VER: 3.5
+NEEDRESTART-KCUR: 5.15.0-142-generic
+NEEDRESTART-KEXP: 5.15.0-142-generic
+NEEDRESTART-KSTA: 1
+[INFO] 2025-06-30 21:45:24 - Executing on lb: cp /etc/haproxy/haproxy.cfg /etc/haproxy/haproxy.cfg.backup
+[INFO] 2025-06-30 21:45:24 - Configuring HAProxy for Kubernetes API
+[INFO] 2025-06-30 21:45:24 - Executing on lb: cat > /etc/haproxy/haproxy.cfg <<'EOF'
+global
+    log /dev/log local0
+    log /dev/log local1 notice
+    daemon
+    chroot /var/lib/haproxy
+    stats socket /run/haproxy/admin.sock mode 660 level admin
+    stats timeout 30s
+    user haproxy
+    group haproxy
+
+defaults
+    log global
+    mode tcp
+    option tcplog
+    timeout connect 5000ms
+    timeout client 50000ms
+    timeout server 50000ms
+    option dontlognull
+    retries 3
+
+frontend kubernetes-frontend
+    bind *:6443
+    mode tcp
+    option tcplog
+    default_backend kubernetes-backend
+
+backend kubernetes-backend
+    mode tcp
+    option tcp-check
+    balance roundrobin
+    default-server inter 10s downinter 5s rise 2 fall 2 slowstart 60s maxconn 250 maxqueue 256 weight 100
+    server master-1 192.168.5.11:6443 check
+    server master-2 192.168.5.12:6443 check
+
+listen stats
+    bind *:8404
+    stats enable
+    stats uri /
+    stats refresh 30s
+    stats admin if TRUE
+EOF
+[INFO] 2025-06-30 21:45:24 - Executing on lb: systemctl restart haproxy
+[INFO] 2025-06-30 21:45:25 - Executing on lb: systemctl enable haproxy
+Synchronizing state of haproxy.service with SysV service script with /lib/systemd/systemd-sysv-install.
+Executing: /lib/systemd/systemd-sysv-install enable haproxy
+[SUCCESS] 2025-06-30 21:45:32 - HAProxy is running on lb node
+
+=================================================================================
+PHASE 5: Initializing First Master Node
+=================================================================================
+
+[INFO] 2025-06-30 21:45:32 - Creating kubeadm configuration for master-1
+[INFO] 2025-06-30 21:45:32 - Executing on master-1: cat > /tmp/kubeadm-config.yaml <<'EOF'
+apiVersion: kubeadm.k8s.io/v1beta3
+kind: InitConfiguration
+localAPIEndpoint:
+  advertiseAddress: 192.168.5.11
+  bindPort: 6443
+nodeRegistration:
+  criSocket: unix:///var/run/containerd/containerd.sock
+  kubeletExtraArgs:
+    feature-gates: "NodeSwap=false"
+    fail-swap-on: "false"
+---
+apiVersion: kubeadm.k8s.io/v1beta3
+kind: ClusterConfiguration
+kubernetesVersion: v1.29.0
+controlPlaneEndpoint: "192.168.5.30:6443"
+clusterName: kubernetes-ha
+networking:
+  serviceSubnet: 10.96.0.0/12
+  podSubnet: 10.244.0.0/16
+  dnsDomain: cluster.local
+apiServer:
+  certSANs:
+    - "192.168.5.30"
+    - "192.168.5.11"
+    - "192.168.5.12"
+    - "master-1"
+    - "master-2"
+    - "lb"
+    - "localhost"
+    - "127.0.0.1"
+  extraArgs:
+    bind-address: "0.0.0.0"
+    service-cluster-ip-range: 10.96.0.0/12
+    feature-gates: "NodeSwap=false"
+controllerManager:
+  extraArgs:
+    bind-address: "0.0.0.0"
+    feature-gates: "NodeSwap=false"
+scheduler:
+  extraArgs:
+    bind-address: "0.0.0.0"
+    feature-gates: "NodeSwap=false"
+etcd:
+  local:
+    dataDir: "/var/lib/etcd"
+---
+apiVersion: kubeadm.k8s.io/v1beta3
+kind: KubeletConfiguration
+cgroupDriver: systemd
+failSwapOn: false
+---
+apiVersion: kubeproxy.config.k8s.io/v1alpha1
+kind: KubeProxyConfiguration
+mode: "iptables"
+EOF
+[INFO] 2025-06-30 21:45:32 - Initializing Kubernetes cluster on master-1 (this may take several minutes)
+[INFO] 2025-06-30 21:45:32 - Executing on master-1: kubeadm init --config=/tmp/kubeadm-config.yaml --upload-certs --v=5
+I0630 21:45:32.552283    5506 initconfiguration.go:260] loading configuration from "/tmp/kubeadm-config.yaml"
+W0630 21:45:32.553978    5506 initconfiguration.go:312] unknown configuration schema.GroupVersionKind{Group:"kubeadm.k8s.io", Version:"v1beta3", Kind:"KubeletConfiguration"}
+W0630 21:45:32.554033    5506 initconfiguration.go:341] [config] WARNING: Ignored YAML document with GroupVersionKind kubeadm.k8s.io/v1beta3, Kind=KubeletConfiguration
+I0630 21:45:32.554535    5506 kubelet.go:196] the value of KubeletConfiguration.cgroupDriver is empty; setting it to "systemd"
+[init] Using Kubernetes version: v1.29.0
+[preflight] Running pre-flight checks
+I0630 21:45:32.560835    5506 checks.go:563] validating Kubernetes and kubeadm version
+I0630 21:45:32.560853    5506 checks.go:168] validating if the firewall is enabled and active
+I0630 21:45:32.577646    5506 checks.go:203] validating availability of port 6443
+I0630 21:45:32.581033    5506 checks.go:203] validating availability of port 10259
+I0630 21:45:32.581715    5506 checks.go:203] validating availability of port 10257
+I0630 21:45:32.581824    5506 checks.go:280] validating the existence of file /etc/kubernetes/manifests/kube-apiserver.yaml
+I0630 21:45:32.581861    5506 checks.go:280] validating the existence of file /etc/kubernetes/manifests/kube-controller-manager.yaml
+I0630 21:45:32.581880    5506 checks.go:280] validating the existence of file /etc/kubernetes/manifests/kube-scheduler.yaml
+I0630 21:45:32.581898    5506 checks.go:280] validating the existence of file /etc/kubernetes/manifests/etcd.yaml
+I0630 21:45:32.581917    5506 checks.go:430] validating if the connectivity type is via proxy or direct
+I0630 21:45:32.582702    5506 checks.go:469] validating http connectivity to first IP address in the CIDR
+I0630 21:45:32.583127    5506 checks.go:469] validating http connectivity to first IP address in the CIDR
+I0630 21:45:32.583152    5506 checks.go:104] validating the container runtime
+I0630 21:45:32.635350    5506 checks.go:639] validating whether swap is enabled or not
+I0630 21:45:32.635770    5506 checks.go:370] validating the presence of executable crictl
+I0630 21:45:32.635819    5506 checks.go:370] validating the presence of executable conntrack
+I0630 21:45:32.635863    5506 checks.go:370] validating the presence of executable ip
+I0630 21:45:32.635896    5506 checks.go:370] validating the presence of executable iptables
+I0630 21:45:32.635932    5506 checks.go:370] validating the presence of executable mount
+I0630 21:45:32.635963    5506 checks.go:370] validating the presence of executable nsenter
+I0630 21:45:32.636752    5506 checks.go:370] validating the presence of executable ethtool
+I0630 21:45:32.636832    5506 checks.go:370] validating the presence of executable tc
+I0630 21:45:32.636852    5506 checks.go:370] validating the presence of executable touch
+I0630 21:45:32.636870    5506 checks.go:516] running all checks
+I0630 21:45:32.669867    5506 checks.go:401] checking whether the given node name is valid and reachable using net.LookupHost
+I0630 21:45:32.670511    5506 checks.go:605] validating kubelet version
+I0630 21:45:32.782203    5506 checks.go:130] validating if the "kubelet" service is enabled and active
+I0630 21:45:32.799282    5506 checks.go:203] validating availability of port 10250
+I0630 21:45:32.799375    5506 checks.go:329] validating the contents of file /proc/sys/net/bridge/bridge-nf-call-iptables
+I0630 21:45:32.799438    5506 checks.go:329] validating the contents of file /proc/sys/net/ipv4/ip_forward
+I0630 21:45:32.799449    5506 checks.go:203] validating availability of port 2379
+I0630 21:45:32.799463    5506 checks.go:203] validating availability of port 2380
+I0630 21:45:32.799474    5506 checks.go:243] validating the existence and emptiness of directory /var/lib/etcd
+[preflight] Pulling images required for setting up a Kubernetes cluster
+[preflight] This might take a minute or two, depending on the speed of your internet connection
+[preflight] You can also perform this action in beforehand using 'kubeadm config images pull'
+I0630 21:45:32.799824    5506 checks.go:828] using image pull policy: IfNotPresent
+I0630 21:45:32.828826    5506 checks.go:854] pulling: registry.k8s.io/kube-apiserver:v1.29.0
+I0630 21:45:39.103808    5506 checks.go:854] pulling: registry.k8s.io/kube-controller-manager:v1.29.0
+I0630 21:45:46.313291    5506 checks.go:854] pulling: registry.k8s.io/kube-scheduler:v1.29.0
+I0630 21:45:52.410170    5506 checks.go:854] pulling: registry.k8s.io/kube-proxy:v1.29.0
+I0630 21:45:59.721249    5506 checks.go:854] pulling: registry.k8s.io/coredns/coredns:v1.11.1
+W0630 21:46:03.759577    5506 checks.go:835] detected that the sandbox image "registry.k8s.io/pause:3.8" of the container runtime is inconsistent with that used by kubeadm. It is recommended that using "registry.k8s.io/pause:3.9" as the CRI sandbox image.
+I0630 21:46:03.817338    5506 checks.go:854] pulling: registry.k8s.io/pause:3.9
+I0630 21:46:05.445577    5506 checks.go:854] pulling: registry.k8s.io/etcd:3.5.16-0
+[certs] Using certificateDir folder "/etc/kubernetes/pki"
+I0630 21:46:17.412207    5506 certs.go:112] creating a new certificate authority for ca
+[certs] Generating "ca" certificate and key
+I0630 21:46:17.611012    5506 certs.go:519] validating certificate period for ca certificate
+[certs] Generating "apiserver" certificate and key
+[certs] apiserver serving cert is signed for DNS names [kubernetes kubernetes.default kubernetes.default.svc kubernetes.default.svc.cluster.local lb localhost master-1 master-2] and IPs [10.96.0.1 192.168.5.11 192.168.5.30 192.168.5.12 127.0.0.1]
+[certs] Generating "apiserver-kubelet-client" certificate and key
+I0630 21:46:18.039539    5506 certs.go:112] creating a new certificate authority for front-proxy-ca
+[certs] Generating "front-proxy-ca" certificate and key
+I0630 21:46:18.166948    5506 certs.go:519] validating certificate period for front-proxy-ca certificate
+[certs] Generating "front-proxy-client" certificate and key
+I0630 21:46:18.296124    5506 certs.go:112] creating a new certificate authority for etcd-ca
+[certs] Generating "etcd/ca" certificate and key
+I0630 21:46:18.359986    5506 certs.go:519] validating certificate period for etcd/ca certificate
+[certs] Generating "etcd/server" certificate and key
+[certs] etcd/server serving cert is signed for DNS names [localhost master-1] and IPs [192.168.5.11 127.0.0.1 ::1]
+[certs] Generating "etcd/peer" certificate and key
+[certs] etcd/peer serving cert is signed for DNS names [localhost master-1] and IPs [192.168.5.11 127.0.0.1 ::1]
+[certs] Generating "etcd/healthcheck-client" certificate and key
+[certs] Generating "apiserver-etcd-client" certificate and key
+I0630 21:46:18.954054    5506 certs.go:78] creating new public/private key files for signing service account users
+[certs] Generating "sa" key and public key
+[kubeconfig] Using kubeconfig folder "/etc/kubernetes"
+I0630 21:46:19.218103    5506 kubeconfig.go:112] creating kubeconfig file for admin.conf
+[kubeconfig] Writing "admin.conf" kubeconfig file
+I0630 21:46:19.332046    5506 kubeconfig.go:112] creating kubeconfig file for super-admin.conf
+[kubeconfig] Writing "super-admin.conf" kubeconfig file
+I0630 21:46:19.428189    5506 kubeconfig.go:112] creating kubeconfig file for kubelet.conf
+[kubeconfig] Writing "kubelet.conf" kubeconfig file
+I0630 21:46:19.554481    5506 kubeconfig.go:112] creating kubeconfig file for controller-manager.conf
+[kubeconfig] Writing "controller-manager.conf" kubeconfig file
+I0630 21:46:19.966002    5506 kubeconfig.go:112] creating kubeconfig file for scheduler.conf
+[kubeconfig] Writing "scheduler.conf" kubeconfig file
+[etcd] Creating static Pod manifest for local etcd in "/etc/kubernetes/manifests"
+I0630 21:46:20.058401    5506 local.go:65] [etcd] wrote Static Pod manifest for a local etcd member to "/etc/kubernetes/manifests/etcd.yaml"   
+[control-plane] Using manifest folder "/etc/kubernetes/manifests"
+[control-plane] Creating static Pod manifest for "kube-apiserver"
+I0630 21:46:20.058532    5506 manifests.go:102] [control-plane] getting StaticPodSpecs
+I0630 21:46:20.058717    5506 certs.go:519] validating certificate period for CA certificate
+I0630 21:46:20.060396    5506 manifests.go:128] [control-plane] adding volume "ca-certs" for component "kube-apiserver"
+I0630 21:46:20.060491    5506 manifests.go:128] [control-plane] adding volume "etc-ca-certificates" for component "kube-apiserver"
+I0630 21:46:20.060669    5506 manifests.go:128] [control-plane] adding volume "k8s-certs" for component "kube-apiserver"
+I0630 21:46:20.060722    5506 manifests.go:128] [control-plane] adding volume "usr-local-share-ca-certificates" for component "kube-apiserver" 
+I0630 21:46:20.060771    5506 manifests.go:128] [control-plane] adding volume "usr-share-ca-certificates" for component "kube-apiserver"       
+I0630 21:46:20.061692    5506 manifests.go:157] [control-plane] wrote static Pod manifest for component "kube-apiserver" to "/etc/kubernetes/manifests/kube-apiserver.yaml"
+[control-plane] Creating static Pod manifest for "kube-controller-manager"
+I0630 21:46:20.061864    5506 manifests.go:102] [control-plane] getting StaticPodSpecs
+I0630 21:46:20.062139    5506 manifests.go:128] [control-plane] adding volume "ca-certs" for component "kube-controller-manager"
+I0630 21:46:20.062170    5506 manifests.go:128] [control-plane] adding volume "etc-ca-certificates" for component "kube-controller-manager"    
+I0630 21:46:20.062185    5506 manifests.go:128] [control-plane] adding volume "flexvolume-dir" for component "kube-controller-manager"
+I0630 21:46:20.062200    5506 manifests.go:128] [control-plane] adding volume "k8s-certs" for component "kube-controller-manager"
+I0630 21:46:20.062215    5506 manifests.go:128] [control-plane] adding volume "kubeconfig" for component "kube-controller-manager"
+I0630 21:46:20.062229    5506 manifests.go:128] [control-plane] adding volume "usr-local-share-ca-certificates" for component "kube-controller-manager"
+I0630 21:46:20.062244    5506 manifests.go:128] [control-plane] adding volume "usr-share-ca-certificates" for component "kube-controller-manager"
+I0630 21:46:20.063822    5506 manifests.go:157] [control-plane] wrote static Pod manifest for component "kube-controller-manager" to "/etc/kubernetes/manifests/kube-controller-manager.yaml"
+[control-plane] Creating static Pod manifest for "kube-scheduler"
+I0630 21:46:20.063917    5506 manifests.go:102] [control-plane] getting StaticPodSpecs
+I0630 21:46:20.064104    5506 manifests.go:128] [control-plane] adding volume "kubeconfig" for component "kube-scheduler"
+I0630 21:46:20.064381    5506 manifests.go:157] [control-plane] wrote static Pod manifest for component "kube-scheduler" to "/etc/kubernetes/manifests/kube-scheduler.yaml"
+I0630 21:46:20.064412    5506 kubelet.go:68] Stopping the kubelet
+[kubelet-start] Writing kubelet environment file with flags to file "/var/lib/kubelet/kubeadm-flags.env"
+[kubelet-start] Writing kubelet configuration to file "/var/lib/kubelet/config.yaml"
+[kubelet-start] Starting the kubelet
+I0630 21:46:20.453346    5506 waitcontrolplane.go:83] [wait-control-plane] Waiting for the API server to be healthy
+[wait-control-plane] Waiting for the kubelet to boot up the control plane as static Pods from directory "/etc/kubernetes/manifests". This can take up to 4m0s
+I0630 21:46:21.463739    5506 with_retry.go:234] Got a Retry-After 1s response for attempt 1 to https://192.168.5.30:6443/healthz?timeout=10s
+I0630 21:46:22.468163    5506 with_retry.go:234] Got a Retry-After 1s response for attempt 2 to https://192.168.5.30:6443/healthz?timeout=10s
+I0630 21:46:23.476051    5506 with_retry.go:234] Got a Retry-After 1s response for attempt 3 to https://192.168.5.30:6443/healthz?timeout=10s
+I0630 21:46:24.482636    5506 with_retry.go:234] Got a Retry-After 1s response for attempt 4 to https://192.168.5.30:6443/healthz?timeout=10s
+I0630 21:46:25.485994    5506 with_retry.go:234] Got a Retry-After 1s response for attempt 5 to https://192.168.5.30:6443/healthz?timeout=10s
+I0630 21:46:26.494181    5506 with_retry.go:234] Got a Retry-After 1s response for attempt 6 to https://192.168.5.30:6443/healthz?timeout=10s
+I0630 21:46:27.498739    5506 with_retry.go:234] Got a Retry-After 1s response for attempt 7 to https://192.168.5.30:6443/healthz?timeout=10s
+I0630 21:46:28.509286    5506 with_retry.go:234] Got a Retry-After 1s response for attempt 8 to https://192.168.5.30:6443/healthz?timeout=10s
+I0630 21:46:29.513132    5506 with_retry.go:234] Got a Retry-After 1s response for attempt 9 to https://192.168.5.30:6443/healthz?timeout=10s
+I0630 21:46:32.023859    5506 with_retry.go:234] Got a Retry-After 1s response for attempt 1 to https://192.168.5.30:6443/healthz?timeout=10s
+I0630 21:46:33.032612    5506 with_retry.go:234] Got a Retry-After 1s response for attempt 2 to https://192.168.5.30:6443/healthz?timeout=10s
+I0630 21:46:34.037855    5506 with_retry.go:234] Got a Retry-After 1s response for attempt 3 to https://192.168.5.30:6443/healthz?timeout=10s
+I0630 21:46:35.042249    5506 with_retry.go:234] Got a Retry-After 1s response for attempt 4 to https://192.168.5.30:6443/healthz?timeout=10s
+I0630 21:46:36.048678    5506 with_retry.go:234] Got a Retry-After 1s response for attempt 5 to https://192.168.5.30:6443/healthz?timeout=10s
+I0630 21:46:37.052219    5506 with_retry.go:234] Got a Retry-After 1s response for attempt 6 to https://192.168.5.30:6443/healthz?timeout=10s
+I0630 21:46:38.057640    5506 with_retry.go:234] Got a Retry-After 1s response for attempt 7 to https://192.168.5.30:6443/healthz?timeout=10s
+I0630 21:46:39.061994    5506 with_retry.go:234] Got a Retry-After 1s response for attempt 8 to https://192.168.5.30:6443/healthz?timeout=10s
+I0630 21:46:40.068745    5506 with_retry.go:234] Got a Retry-After 1s response for attempt 9 to https://192.168.5.30:6443/healthz?timeout=10s
+[apiclient] All control plane components are healthy after 21.094900 seconds
+I0630 21:46:41.553675    5506 kubeconfig.go:606] ensuring that the ClusterRoleBinding for the kubeadm:cluster-admins Group exists
+I0630 21:46:41.564917    5506 kubeconfig.go:682] creating the ClusterRoleBinding for the kubeadm:cluster-admins Group by using super-admin.conf
+I0630 21:46:41.592042    5506 uploadconfig.go:112] [upload-config] Uploading the kubeadm ClusterConfiguration to a ConfigMap
+[upload-config] Storing the configuration used in ConfigMap "kubeadm-config" in the "kube-system" Namespace
+I0630 21:46:41.631627    5506 uploadconfig.go:126] [upload-config] Uploading the kubelet component config to a ConfigMap
+[kubelet] Creating a ConfigMap "kubelet-config" in namespace kube-system with the configuration for the kubelets in the cluster
+I0630 21:46:41.666794    5506 uploadconfig.go:131] [upload-config] Preserving the CRISocket information for the control-plane node
+I0630 21:46:41.667025    5506 patchnode.go:31] [patchnode] Uploading the CRI Socket information "unix:///var/run/containerd/containerd.sock" to the Node API object "master-1" as an annotation
+[upload-certs] Storing the certificates in Secret "kubeadm-certs" in the "kube-system" Namespace
+[upload-certs] Using certificate key:
+11f54b977f5f83ebfaeed13353893aeba8aa6ff98734ed9d4aaa2fdd47a454bc
+[mark-control-plane] Marking the node master-1 as control-plane by adding the labels: [node-role.kubernetes.io/control-plane node.kubernetes.io/exclude-from-external-load-balancers]
+[mark-control-plane] Marking the node master-1 as control-plane by adding the taints [node-role.kubernetes.io/control-plane:NoSchedule]        
+[bootstrap-token] Using token: yps1gv.sguufkvdk503vagm
+[bootstrap-token] Configuring bootstrap tokens, cluster-info ConfigMap, RBAC Roles
+[bootstrap-token] Configured RBAC rules to allow Node Bootstrap tokens to get nodes
+[bootstrap-token] Configured RBAC rules to allow Node Bootstrap tokens to post CSRs in order for nodes to get long term certificate credentials
+[bootstrap-token] Configured RBAC rules to allow the csrapprover controller automatically approve CSRs from a Node Bootstrap Token
+[bootstrap-token] Configured RBAC rules to allow certificate rotation for all node client certificates in the cluster
+[bootstrap-token] Creating the "cluster-info" ConfigMap in the "kube-public" namespace
+I0630 21:46:42.901705    5506 clusterinfo.go:47] [bootstrap-token] loading admin kubeconfig
+I0630 21:46:42.902673    5506 clusterinfo.go:58] [bootstrap-token] copying the cluster from admin.conf to the bootstrap kubeconfig
+I0630 21:46:42.902824    5506 clusterinfo.go:70] [bootstrap-token] creating/updating ConfigMap in kube-public namespace
+I0630 21:46:42.914042    5506 clusterinfo.go:84] creating the RBAC rules for exposing the cluster-info ConfigMap in the kube-public namespace
+I0630 21:46:42.948629    5506 kubeletfinalize.go:91] [kubelet-finalize] Assuming that kubelet client certificate rotation is enabled: found "/var/lib/kubelet/pki/kubelet-client-current.pem"
+[kubelet-finalize] Updating "/etc/kubernetes/kubelet.conf" to point to a rotatable kubelet client certificate and key
+I0630 21:46:42.949802    5506 kubeletfinalize.go:135] [kubelet-finalize] Restarting the kubelet to enable client certificate rotation
+[addons] Applied essential addon: CoreDNS
+[addons] Applied essential addon: kube-proxy
+
+Your Kubernetes control-plane has initialized successfully!
+
+To start using your cluster, you need to run the following as a regular user:
+
+  mkdir -p $HOME/.kube
+  sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+  sudo chown $(id -u):$(id -g) $HOME/.kube/config
+
+Alternatively, if you are the root user, you can run:
+
+  export KUBECONFIG=/etc/kubernetes/admin.conf
+
+You should now deploy a pod network to the cluster.
+Run "kubectl apply -f [podnetwork].yaml" with one of the options listed at:
+  https://kubernetes.io/docs/concepts/cluster-administration/addons/
+
+You can now join any number of the control-plane node running the following command on each as root:
+
+  kubeadm join 192.168.5.30:6443 --token yps1gv.sguufkvdk503vagm \
+        --discovery-token-ca-cert-hash sha256:d07664f0f343b1eaf70775ff2141286af14235cc23bc6954cfa37ef2ac609e3f \
+        --control-plane --certificate-key 11f54b977f5f83ebfaeed13353893aeba8aa6ff98734ed9d4aaa2fdd47a454bc
+
+Please note that the certificate-key gives access to cluster sensitive data, keep it secret!
+As a safeguard, uploaded-certs will be deleted in two hours; If necessary, you can use
+"kubeadm init phase upload-certs --upload-certs" to reload certs afterward.
+
+Then you can join any number of worker nodes by running the following on each as root:
+
+kubeadm join 192.168.5.30:6443 --token yps1gv.sguufkvdk503vagm \
+        --discovery-token-ca-cert-hash sha256:d07664f0f343b1eaf70775ff2141286af14235cc23bc6954cfa37ef2ac609e3f
+[INFO] 2025-06-30 21:46:44 - Configuring kubectl for vagrant user on master-1
+[INFO] 2025-06-30 21:46:44 - Executing as vagrant on master-1: mkdir -p ~/.kube
+[INFO] 2025-06-30 21:46:44 - Executing on master-1: cp /etc/kubernetes/admin.conf /home/vagrant/.kube/config
+[INFO] 2025-06-30 21:46:44 - Executing on master-1: chown vagrant:vagrant /home/vagrant/.kube/config
+[INFO] 2025-06-30 21:46:44 - Waiting for API server to be ready...
+[INFO] 2025-06-30 21:47:14 - Executing as vagrant on master-1: kubectl cluster-info >/dev/null 2>&1
+[SUCCESS] 2025-06-30 21:47:14 - kubectl is working on master-1
+[INFO] 2025-06-30 21:47:14 - Generating join tokens and commands
+[INFO] 2025-06-30 21:47:15 - Worker join command: kubeadm join 192.168.5.30:6443 --token 2sufdg.rdrdkll1qfhpa8w5 --discovery-token-ca-cert-hash sha256:d07664f0f343b1eaf70775ff2141286af14235cc23bc6954cfa37ef2ac609e3f
+[INFO] 2025-06-30 21:47:15 - Certificate key: 624068640cfdd63ea7ca09dffd68b36e5b15371acd88a644e499fd5cd6ca16f3
+[SUCCESS] 2025-06-30 21:47:15 - First master node initialized successfully
+
+=================================================================================
+PHASE 6: Joining Second Master Node
+=================================================================================
+
+[INFO] 2025-06-30 21:47:16 - Joining master-2 to the cluster
+[INFO] 2025-06-30 21:47:16 - Join command: kubeadm join 192.168.5.30:6443 --token 2sufdg.rdrdkll1qfhpa8w5 --discovery-token-ca-cert-hash sha256:d07664f0f343b1eaf70775ff2141286af14235cc23bc6954cfa37ef2ac609e3f  --control-plane --certificate-key 624068640cfdd63ea7ca09dffd68b36e5b15371acd88a644e499fd5cd6ca16f3 --cri-socket unix:///var/run/containerd/containerd.sock
+[INFO] 2025-06-30 21:47:16 - Executing on master-2: kubeadm join 192.168.5.30:6443 --token 2sufdg.rdrdkll1qfhpa8w5 --discovery-token-ca-cert-hash sha256:d07664f0f343b1eaf70775ff2141286af14235cc23bc6954cfa37ef2ac609e3f  --control-plane --certificate-key 624068640cfdd63ea7ca09dffd68b36e5b15371acd88a644e499fd5cd6ca16f3 --cri-socket unix:///var/run/containerd/containerd.sock
+[preflight] Running pre-flight checks
+[preflight] Reading configuration from the cluster...
+[preflight] FYI: You can look at this config file with 'kubectl -n kube-system get cm kubeadm-config -o yaml'
+[preflight] Running pre-flight checks before initializing the new control plane instance
+[preflight] Pulling images required for setting up a Kubernetes cluster
+[preflight] This might take a minute or two, depending on the speed of your internet connection
+[preflight] You can also perform this action in beforehand using 'kubeadm config images pull'
+W0630 21:47:44.168246    7898 checks.go:835] detected that the sandbox image "registry.k8s.io/pause:3.8" of the container runtime is inconsistent with that used by kubeadm. It is recommended that using "registry.k8s.io/pause:3.9" as the CRI sandbox image.
+[download-certs] Downloading the certificates in Secret "kubeadm-certs" in the "kube-system" Namespace
+[download-certs] Saving the certificates to the folder: "/etc/kubernetes/pki"
+[certs] Using certificateDir folder "/etc/kubernetes/pki"
+[certs] Generating "apiserver" certificate and key
+[certs] apiserver serving cert is signed for DNS names [kubernetes kubernetes.default kubernetes.default.svc kubernetes.default.svc.cluster.local lb localhost master-1 master-2] and IPs [10.96.0.1 10.0.2.15 192.168.5.30 192.168.5.11 192.168.5.12 127.0.0.1]
+[certs] Generating "apiserver-kubelet-client" certificate and key
+[certs] Generating "apiserver-etcd-client" certificate and key
+[certs] Generating "etcd/server" certificate and key
+[certs] etcd/server serving cert is signed for DNS names [localhost master-2] and IPs [10.0.2.15 127.0.0.1 ::1]
+[certs] Generating "etcd/peer" certificate and key
+[certs] etcd/peer serving cert is signed for DNS names [localhost master-2] and IPs [10.0.2.15 127.0.0.1 ::1]
+[certs] Generating "etcd/healthcheck-client" certificate and key
+[certs] Generating "front-proxy-client" certificate and key
+[certs] Valid certificates and keys now exist in "/etc/kubernetes/pki"
+[certs] Using the existing "sa" key
+[kubeconfig] Generating kubeconfig files
+[kubeconfig] Using kubeconfig folder "/etc/kubernetes"
+[kubeconfig] Writing "admin.conf" kubeconfig file
+[kubeconfig] Writing "controller-manager.conf" kubeconfig file
+[kubeconfig] Writing "scheduler.conf" kubeconfig file
+[control-plane] Using manifest folder "/etc/kubernetes/manifests"
+[control-plane] Creating static Pod manifest for "kube-apiserver"
+[control-plane] Creating static Pod manifest for "kube-controller-manager"
+[control-plane] Creating static Pod manifest for "kube-scheduler"
+[check-etcd] Checking that the etcd cluster is healthy
+[kubelet-start] Writing kubelet configuration to file "/var/lib/kubelet/config.yaml"
+[kubelet-start] Writing kubelet environment file with flags to file "/var/lib/kubelet/kubeadm-flags.env"
+[kubelet-start] Starting the kubelet
+[kubelet-start] Waiting for the kubelet to perform the TLS Bootstrap...
+[etcd] Announced new etcd member joining to the existing etcd cluster
+[etcd] Creating static Pod manifest for "etcd"
+{"level":"warn","ts":"2025-06-30T21:47:58.631564Z","logger":"etcd-client","caller":"v3@v3.5.10/retry_interceptor.go:62","msg":"retrying of unary invoker failed","target":"etcd-endpoints://0xc000931500/192.168.5.11:2379","attempt":0,"error":"rpc error: code = FailedPrecondition desc = etcdserver: can only promote a learner member which is in sync with leader"}
+{"level":"warn","ts":"2025-06-30T21:47:58.736144Z","logger":"etcd-client","caller":"v3@v3.5.10/retry_interceptor.go:62","msg":"retrying of unary invoker failed","target":"etcd-endpoints://0xc000931500/192.168.5.11:2379","attempt":0,"error":"rpc error: code = FailedPrecondition desc = etcdserver: can only promote a learner member which is in sync with leader"}
+{"level":"warn","ts":"2025-06-30T21:47:58.899094Z","logger":"etcd-client","caller":"v3@v3.5.10/retry_interceptor.go:62","msg":"retrying of unary invoker failed","target":"etcd-endpoints://0xc000931500/192.168.5.11:2379","attempt":0,"error":"rpc error: code = FailedPrecondition desc = etcdserver: can only promote a learner member which is in sync with leader"}
+{"level":"warn","ts":"2025-06-30T21:47:59.135853Z","logger":"etcd-client","caller":"v3@v3.5.10/retry_interceptor.go:62","msg":"retrying of unary invoker failed","target":"etcd-endpoints://0xc000931500/192.168.5.11:2379","attempt":0,"error":"rpc error: code = FailedPrecondition desc = etcdserver: can only promote a learner member which is in sync with leader"}
+{"level":"warn","ts":"2025-06-30T21:47:59.485861Z","logger":"etcd-client","caller":"v3@v3.5.10/retry_interceptor.go:62","msg":"retrying of unary invoker failed","target":"etcd-endpoints://0xc000931500/192.168.5.11:2379","attempt":0,"error":"rpc error: code = FailedPrecondition desc = etcdserver: can only promote a learner member which is in sync with leader"}
+{"level":"warn","ts":"2025-06-30T21:48:00.026317Z","logger":"etcd-client","caller":"v3@v3.5.10/retry_interceptor.go:62","msg":"retrying of unary invoker failed","target":"etcd-endpoints://0xc000931500/192.168.5.11:2379","attempt":0,"error":"rpc error: code = FailedPrecondition desc = etcdserver: can only promote a learner member which is in sync with leader"}
+{"level":"warn","ts":"2025-06-30T21:48:00.793707Z","logger":"etcd-client","caller":"v3@v3.5.10/retry_interceptor.go:62","msg":"retrying of unary invoker failed","target":"etcd-endpoints://0xc000931500/192.168.5.11:2379","attempt":0,"error":"rpc error: code = FailedPrecondition desc = etcdserver: can only promote a learner member which is in sync with leader"}
+[etcd] Waiting for the new etcd member to join the cluster. This can take up to 40s
+The 'update-status' phase is deprecated and will be removed in a future release. Currently it performs no operation
+[mark-control-plane] Marking the node master-2 as control-plane by adding the labels: [node-role.kubernetes.io/control-plane node.kubernetes.io/exclude-from-external-load-balancers]
+[mark-control-plane] Marking the node master-2 as control-plane by adding the taints [node-role.kubernetes.io/control-plane:NoSchedule]        
+
+This node has joined the cluster and a new control plane instance was created:
+
+* Certificate signing request was sent to apiserver and approval was received.
+* The Kubelet was informed of the new secure connection details.
+* Control plane label and taint were applied to the new node.
+* The Kubernetes control plane instances scaled up.
+* A new etcd member was added to the local/stacked etcd cluster.
+
+To start administering your cluster from this node, you need to run the following as a regular user:
+
+        mkdir -p $HOME/.kube
+        sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+        sudo chown $(id -u):$(id -g) $HOME/.kube/config
+
+Run 'kubectl get nodes' to see this node join the cluster.
+
+[INFO] 2025-06-30 21:48:02 - Configuring kubectl for vagrant user on master-2
+[INFO] 2025-06-30 21:48:02 - Executing as vagrant on master-2: mkdir -p ~/.kube
+[INFO] 2025-06-30 21:48:03 - Executing on master-2: cp /etc/kubernetes/admin.conf /home/vagrant/.kube/config
+[INFO] 2025-06-30 21:48:03 - Executing on master-2: chown vagrant:vagrant /home/vagrant/.kube/config
+[INFO] 2025-06-30 21:48:14 - Executing as vagrant on master-2: kubectl get nodes >/dev/null 2>&1
+[SUCCESS] 2025-06-30 21:48:15 - master-2 joined successfully and kubectl is working
+
+=================================================================================
+PHASE 7: Installing Pod Network (Calico)
+=================================================================================
+
+[INFO] 2025-06-30 21:48:15 - Installing Calico network plugin
+[INFO] 2025-06-30 21:48:15 - Waiting for control plane to be stable...
+[INFO] 2025-06-30 21:48:45 - Installing Tigera operator
+[INFO] 2025-06-30 21:48:45 - Executing as vagrant on master-1: kubectl create -f https://raw.githubusercontent.com/projectcalico/calico/v3.27.0/manifests/tigera-operator.yaml
+namespace/tigera-operator created
+customresourcedefinition.apiextensions.k8s.io/bgpconfigurations.crd.projectcalico.org created
+customresourcedefinition.apiextensions.k8s.io/bgpfilters.crd.projectcalico.org created
+customresourcedefinition.apiextensions.k8s.io/bgppeers.crd.projectcalico.org created
+customresourcedefinition.apiextensions.k8s.io/blockaffinities.crd.projectcalico.org created
+customresourcedefinition.apiextensions.k8s.io/caliconodestatuses.crd.projectcalico.org created
+customresourcedefinition.apiextensions.k8s.io/clusterinformations.crd.projectcalico.org created
+customresourcedefinition.apiextensions.k8s.io/felixconfigurations.crd.projectcalico.org created
+customresourcedefinition.apiextensions.k8s.io/globalnetworkpolicies.crd.projectcalico.org created
+customresourcedefinition.apiextensions.k8s.io/globalnetworksets.crd.projectcalico.org created
+customresourcedefinition.apiextensions.k8s.io/hostendpoints.crd.projectcalico.org created
+customresourcedefinition.apiextensions.k8s.io/ipamblocks.crd.projectcalico.org created
+customresourcedefinition.apiextensions.k8s.io/ipamconfigs.crd.projectcalico.org created
+customresourcedefinition.apiextensions.k8s.io/ipamhandles.crd.projectcalico.org created
+customresourcedefinition.apiextensions.k8s.io/ippools.crd.projectcalico.org created
+customresourcedefinition.apiextensions.k8s.io/ipreservations.crd.projectcalico.org created
+customresourcedefinition.apiextensions.k8s.io/kubecontrollersconfigurations.crd.projectcalico.org created
+customresourcedefinition.apiextensions.k8s.io/networkpolicies.crd.projectcalico.org created
+customresourcedefinition.apiextensions.k8s.io/networksets.crd.projectcalico.org created
+customresourcedefinition.apiextensions.k8s.io/apiservers.operator.tigera.io created
+customresourcedefinition.apiextensions.k8s.io/imagesets.operator.tigera.io created
+customresourcedefinition.apiextensions.k8s.io/installations.operator.tigera.io created
+customresourcedefinition.apiextensions.k8s.io/tigerastatuses.operator.tigera.io created
+serviceaccount/tigera-operator created
+clusterrole.rbac.authorization.k8s.io/tigera-operator created
+clusterrolebinding.rbac.authorization.k8s.io/tigera-operator created
+deployment.apps/tigera-operator created
+[INFO] 2025-06-30 21:49:39 - Waiting for Tigera operator to be ready...
+[INFO] 2025-06-30 21:50:09 - Executing on master-1: cat > /tmp/calico-custom-resources.yaml <<'EOF'
+apiVersion: operator.tigera.io/v1
+kind: Installation
+metadata:
+  name: default
+spec:
+  calicoNetwork:
+    ipPools:
+    - blockSize: 26
+      cidr: 10.244.0.0/16
+      encapsulation: VXLANCrossSubnet
+      natOutgoing: Enabled
+      nodeSelector: all()
+---
+apiVersion: operator.tigera.io/v1
+kind: APIServer
+metadata:
+  name: default
+spec: {}
+EOF
+[INFO] 2025-06-30 21:50:09 - Executing as vagrant on master-1: kubectl create -f /tmp/calico-custom-resources.yaml
+installation.operator.tigera.io/default created
+apiserver.operator.tigera.io/default created
+[INFO] 2025-06-30 21:50:11 - Waiting for Calico components to be ready...
+[SUCCESS] 2025-06-30 21:51:41 - Calico network plugin installation initiated
+
+=================================================================================
+PHASE 8: Joining Worker Nodes
+=================================================================================
+
+[INFO] 2025-06-30 21:51:41 - Joining worker-1 to the cluster
+[INFO] 2025-06-30 21:51:44 - Executing on worker-1: kubeadm join 192.168.5.30:6443 --token 2sufdg.rdrdkll1qfhpa8w5 --discovery-token-ca-cert-hash sha256:d07664f0f343b1eaf70775ff2141286af14235cc23bc6954cfa37ef2ac609e3f  --cri-socket unix:///var/run/cri-dockerd.sock
+[preflight] Running pre-flight checks
+error execution phase preflight: [preflight] Some fatal errors occurred:
+        [ERROR CRI]: container runtime is not running: output: time="2025-06-30T21:51:46Z" level=fatal msg="validate service connection: validate CRI v1 runtime API for endpoint \"unix:///var/run/cri-dockerd.sock\": rpc error: code = Unavailable desc = connection error: desc = \"transport: Error while dialing: dial unix /var/run/cri-dockerd.sock: connect: no such file or directory\""
+, error: exit status 1
+[preflight] If you know what you are doing, you can make a check non-fatal with `--ignore-preflight-errors=...`
+To see the stack trace of this error execute with --v=5 or higher
+[WARNING] 2025-06-30 21:51:47 - Command failed on worker-1, retrying (1/3)...
+[preflight] Running pre-flight checks
+error execution phase preflight: [preflight] Some fatal errors occurred:
+        [ERROR CRI]: container runtime is not running: output: time="2025-06-30T21:51:53Z" level=fatal msg="validate service connection: validate CRI v1 runtime API for endpoint \"unix:///var/run/cri-dockerd.sock\": rpc error: code = Unavailable desc = connection error: desc = \"transport: Error while dialing: dial unix /var/run/cri-dockerd.sock: connect: no such file or directory\""
+, error: exit status 1
+[preflight] If you know what you are doing, you can make a check non-fatal with `--ignore-preflight-errors=...`
+To see the stack trace of this error execute with --v=5 or higher
+[WARNING] 2025-06-30 21:51:54 - Command failed on worker-1, retrying (2/3)...
+[preflight] Running pre-flight checks
+error execution phase preflight: [preflight] Some fatal errors occurred:
+        [ERROR CRI]: container runtime is not running: output: time="2025-06-30T21:52:00Z" level=fatal msg="validate service connection: validate CRI v1 runtime API for endpoint \"unix:///var/run/cri-dockerd.sock\": rpc error: code = Unavailable desc = connection error: desc = \"transport: Error while dialing: dial unix /var/run/cri-dockerd.sock: connect: no such file or directory\""
+, error: exit status 1
+[preflight] If you know what you are doing, you can make a check non-fatal with `--ignore-preflight-errors=...`
+To see the stack trace of this error execute with --v=5 or higher
+[ERROR] 2025-06-30 21:52:01 - Command failed on worker-1 after 3 attempts: kubeadm join 192.168.5.30:6443 --token 2sufdg.rdrdkll1qfhpa8w5 --discovery-token-ca-cert-hash sha256:d07664f0f343b1eaf70775ff2141286af14235cc23bc6954cfa37ef2ac609e3f  --cri-socket unix:///var/run/cri-dockerd.sock
+Error occurred at line 1011. Exiting...
