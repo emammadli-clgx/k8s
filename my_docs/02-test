@@ -1,0 +1,318 @@
+#!/bin/bash
+
+# test-certificates.sh
+# Purpose: Test and validate all generated TLS certificates
+# Run on: master-1
+
+set -uo pipefail
+
+# Color codes for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
+# Test results
+TESTS_PASSED=0
+TESTS_FAILED=0
+
+# Configuration
+CERT_DIR="./certs"
+CA_DIR="${CERT_DIR}/ca"
+CLIENT_DIR="${CERT_DIR}/client"
+SERVER_DIR="${CERT_DIR}/server"
+
+# Expected certificates
+CLIENT_CERTS=("admin" "kube-controller-manager" "kube-proxy" "kube-scheduler" "service-account")
+SERVER_CERTS=("kube-apiserver" "etcd-server")
+
+# Logging functions
+log() {
+    echo -e "${GREEN}[TEST]${NC} $1"
+}
+
+error() {
+    echo -e "${RED}[FAIL]${NC} $1" >&2
+    TESTS_FAILED=$((TESTS_FAILED + 1))
+}
+
+success() {
+    echo -e "${GREEN}[PASS]${NC} $1"
+    TESTS_PASSED=$((TESTS_PASSED + 1))
+}
+
+warning() {
+    echo -e "${YELLOW}[WARN]${NC} $1"
+}
+
+# Test certificate file existence
+test_certificate_files() {
+    log "Testing certificate file existence..."
+    
+    # Test CA files
+    if [[ -f "${CA_DIR}/ca.crt" ]]; then
+        success "CA certificate exists"
+    else
+        error "CA certificate missing"
+    fi
+    
+    if [[ -f "${CA_DIR}/ca.key" ]]; then
+        success "CA private key exists"
+    else
+        error "CA private key missing"
+    fi
+    
+    # Test client certificates
+    for cert in "${CLIENT_CERTS[@]}"; do
+        if [[ -f "${CLIENT_DIR}/${cert}.crt" ]]; then
+            success "Client certificate ${cert}.crt exists"
+        else
+            error "Client certificate ${cert}.crt missing"
+        fi
+        
+        if [[ -f "${CLIENT_DIR}/${cert}.key" ]]; then
+            success "Client private key ${cert}.key exists"
+        else
+            error "Client private key ${cert}.key missing"
+        fi
+    done
+    
+    # Test server certificates
+    for cert in "${SERVER_CERTS[@]}"; do
+        if [[ -f "${SERVER_DIR}/${cert}.crt" ]]; then
+            success "Server certificate ${cert}.crt exists"
+        else
+            error "Server certificate ${cert}.crt missing"
+        fi
+        
+        if [[ -f "${SERVER_DIR}/${cert}.key" ]]; then
+            success "Server private key ${cert}.key exists"
+        else
+            error "Server private key ${cert}.key missing"
+        fi
+    done
+}
+
+# Test certificate permissions
+test_certificate_permissions() {
+    log "Testing certificate file permissions..."
+    
+    # Test CA key permissions
+    if [[ -f "${CA_DIR}/ca.key" ]]; then
+        local perm=$(stat -c "%a" "${CA_DIR}/ca.key")
+        if [[ "$perm" == "600" ]]; then
+            success "CA private key has correct permissions (600)"
+        else
+            error "CA private key has incorrect permissions ($perm, expected 600)"
+        fi
+    fi
+    
+    # Test client key permissions
+    for cert in "${CLIENT_CERTS[@]}"; do
+        if [[ -f "${CLIENT_DIR}/${cert}.key" ]]; then
+            local perm=$(stat -c "%a" "${CLIENT_DIR}/${cert}.key")
+            if [[ "$perm" == "600" ]]; then
+                success "Client key ${cert}.key has correct permissions (600)"
+            else
+                error "Client key ${cert}.key has incorrect permissions ($perm, expected 600)"
+            fi
+        fi
+    done
+    
+    # Test server key permissions
+    for cert in "${SERVER_CERTS[@]}"; do
+        if [[ -f "${SERVER_DIR}/${cert}.key" ]]; then
+            local perm=$(stat -c "%a" "${SERVER_DIR}/${cert}.key")
+            if [[ "$perm" == "600" ]]; then
+                success "Server key ${cert}.key has correct permissions (600)"
+            else
+                error "Server key ${cert}.key has incorrect permissions ($perm, expected 600)"
+            fi
+        fi
+    done
+}
+
+# Test certificate validity
+test_certificate_validity() {
+    log "Testing certificate validity..."
+    
+    # Test CA certificate
+    if [[ -f "${CA_DIR}/ca.crt" ]]; then
+        if openssl x509 -in "${CA_DIR}/ca.crt" -noout -checkend 86400 > /dev/null 2>&1; then
+            success "CA certificate is valid"
+        else
+            error "CA certificate is expired or invalid"
+        fi
+        
+        # Check if it's a CA certificate
+        if openssl x509 -in "${CA_DIR}/ca.crt" -text -noout | grep -q "CA:TRUE"; then
+            success "CA certificate has correct CA flag"
+        else
+            error "CA certificate missing CA flag"
+        fi
+    fi
+    
+    # Test client certificates
+    for cert in "${CLIENT_CERTS[@]}"; do
+        if [[ -f "${CLIENT_DIR}/${cert}.crt" ]]; then
+            if openssl x509 -in "${CLIENT_DIR}/${cert}.crt" -noout -checkend 86400 > /dev/null 2>&1; then
+                success "Client certificate ${cert}.crt is valid"
+            else
+                error "Client certificate ${cert}.crt is expired or invalid"
+            fi
+        fi
+    done
+    
+    # Test server certificates
+    for cert in "${SERVER_CERTS[@]}"; do
+        if [[ -f "${SERVER_DIR}/${cert}.crt" ]]; then
+            if openssl x509 -in "${SERVER_DIR}/${cert}.crt" -noout -checkend 86400 > /dev/null 2>&1; then
+                success "Server certificate ${cert}.crt is valid"
+            else
+                error "Server certificate ${cert}.crt is expired or invalid"
+            fi
+        fi
+    done
+}
+
+# Test certificate chain verification
+test_certificate_chain() {
+    log "Testing certificate chain verification..."
+    
+    # Test client certificate chains
+    for cert in "${CLIENT_CERTS[@]}"; do
+        if [[ -f "${CLIENT_DIR}/${cert}.crt" && -f "${CA_DIR}/ca.crt" ]]; then
+            if openssl verify -CAfile "${CA_DIR}/ca.crt" "${CLIENT_DIR}/${cert}.crt" 2>/dev/null | grep -q "OK"; then
+                success "Client certificate ${cert}.crt chain verification passed"
+            else
+                error "Client certificate ${cert}.crt chain verification failed"
+            fi
+        fi
+    done
+    
+    # Test server certificate chains
+    for cert in "${SERVER_CERTS[@]}"; do
+        if [[ -f "${SERVER_DIR}/${cert}.crt" && -f "${CA_DIR}/ca.crt" ]]; then
+            if openssl verify -CAfile "${CA_DIR}/ca.crt" "${SERVER_DIR}/${cert}.crt" 2>/dev/null | grep -q "OK"; then
+                success "Server certificate ${cert}.crt chain verification passed"
+            else
+                error "Server certificate ${cert}.crt chain verification failed"
+            fi
+        fi
+    done
+}
+
+# Test certificate subject and extensions
+test_certificate_details() {
+    log "Testing certificate details..."
+    
+    # Test admin certificate organization
+    if [[ -f "${CLIENT_DIR}/admin.crt" ]]; then
+        if openssl x509 -in "${CLIENT_DIR}/admin.crt" -text -noout | grep -q "system:masters"; then
+            success "Admin certificate has correct organization (system:masters)"
+        else
+            error "Admin certificate missing system:masters organization"
+        fi
+    fi
+    
+    # Test kube-apiserver SAN
+    if [[ -f "${SERVER_DIR}/kube-apiserver.crt" ]]; then
+        local san_check=$(openssl x509 -in "${SERVER_DIR}/kube-apiserver.crt" -text -noout | grep -A 10 "Subject Alternative Name")
+        if [[ "$san_check" == *"kubernetes"* && "$san_check" == *"192.168.5.11"* ]]; then
+            success "kube-apiserver certificate has correct SAN entries"
+        else
+            error "kube-apiserver certificate missing required SAN entries"
+        fi
+    fi
+    
+    # Test etcd-server SAN
+    if [[ -f "${SERVER_DIR}/etcd-server.crt" ]]; then
+        local san_check=$(openssl x509 -in "${SERVER_DIR}/etcd-server.crt" -text -noout | grep -A 5 "Subject Alternative Name")
+        if [[ "$san_check" == *"192.168.5.11"* && "$san_check" == *"192.168.5.12"* ]]; then
+            success "etcd-server certificate has correct SAN entries"
+        else
+            error "etcd-server certificate missing required SAN entries"
+        fi
+    fi
+}
+
+# Test certificate distribution
+test_certificate_distribution() {
+    log "Testing certificate distribution to master-2..."
+    
+    # Check if certificates exist on master-2
+    local required_files=("ca.crt" "ca.key" "kube-apiserver.key" "kube-apiserver.crt" "service-account.key" "service-account.crt" "etcd-server.key" "etcd-server.crt")
+    
+    for file in "${required_files[@]}"; do
+        if ssh -o StrictHostKeyChecking=no vagrant@master-2 "test -f ~/${file}" 2>/dev/null; then
+            success "Certificate ${file} exists on master-2"
+        else
+            error "Certificate ${file} missing on master-2"
+        fi
+    done
+    
+    # Test permissions on master-2
+    for file in ca.key kube-apiserver.key service-account.key etcd-server.key; do
+        local perm=$(ssh -o StrictHostKeyChecking=no vagrant@master-2 "stat -c '%a' ~/${file}" 2>/dev/null || echo "000")
+        if [[ "$perm" == "600" ]]; then
+            success "Certificate ${file} has correct permissions on master-2 (600)"
+        else
+            error "Certificate ${file} has incorrect permissions on master-2 ($perm, expected 600)"
+        fi
+    done
+}
+
+# Main test execution
+main() {
+    echo "=================================================="
+    echo "TLS Certificate Test Suite"
+    echo "=================================================="
+    
+    # Check if running on master-1
+    local current_hostname=$(hostname)
+    if [[ "$current_hostname" != "master-1" ]] && [[ "$current_hostname" != "kubernetes-ha-master-1" ]]; then
+        error "This script must be run on master-1"
+        exit 1
+    fi
+    
+    # Check if certificate directory exists
+    if [[ ! -d "$CERT_DIR" ]]; then
+        error "Certificate directory not found. Run generate-certificates.sh first."
+        exit 1
+    fi
+    
+    # Run tests
+    test_certificate_files
+    echo ""
+    test_certificate_permissions
+    echo ""
+    test_certificate_validity
+    echo ""
+    test_certificate_chain
+    echo ""
+    test_certificate_details
+    echo ""
+    test_certificate_distribution
+    
+    # Summary
+    echo ""
+    echo "=================================================="
+    echo "TEST SUMMARY"
+    echo "=================================================="
+    echo -e "${GREEN}Passed:${NC} ${TESTS_PASSED}"
+    echo -e "${RED}Failed:${NC} ${TESTS_FAILED}"
+    echo ""
+    
+    if [ ${TESTS_FAILED} -eq 0 ]; then
+        echo -e "${GREEN}All certificate tests passed!${NC}"
+        echo "Your PKI infrastructure is ready for Kubernetes deployment."
+        exit 0
+    else
+        echo -e "${RED}Some certificate tests failed.${NC}"
+        echo "Please review the errors above before proceeding."
+        exit 1
+    fi
+}
+
+# Run main function
+main
