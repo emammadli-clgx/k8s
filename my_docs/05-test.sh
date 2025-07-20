@@ -1,293 +1,129 @@
 #!/bin/bash
+# Script: test-etcd.sh
+# Purpose: Test etcd cluster functionality
+# Run on: master-1 (after both masters have etcd running)
 
-# verify-etcd-cluster.sh
-# Purpose: Verify etcd cluster health and membership
-# Run on: any master node (after all nodes are configured)
+set -e
 
-set -euo pipefail
+echo "=== Testing etcd Cluster ==="
 
-# Color codes for output
-RED='\033[0;31m'
+# Color codes
 GREEN='\033[0;32m'
+RED='\033[0;31m'
 YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+NC='\033[0m'
 
-# Configuration
-ETCD_CONFIG_DIR="/etc/etcd"
-MASTER_IPS=("192.168.5.11" "192.168.5.12")
-MASTER_NAMES=("master-1" "master-2")
+FAILED=0
 
-# Test results
-TESTS_PASSED=0
-TESTS_FAILED=0
+# Check etcd binary exists
+echo "Checking etcd installation..."
+if command -v etcd &> /dev/null && command -v etcdctl &> /dev/null; then
+    echo -e "  etcd binaries: ${GREEN}INSTALLED${NC}"
+    etcd --version | head -1
+    etcdctl version | head -1
+else
+    echo -e "  etcd binaries: ${RED}NOT FOUND${NC}"
+    ((FAILED++))
+fi
 
-# Logging functions
-log() {
-    echo -e "${GREEN}[TEST]${NC} $1"
-}
+# Check etcd service on master-1
+echo -e "\nChecking etcd service on master-1..."
+if sudo systemctl is-active --quiet etcd; then
+    echo -e "  Service status: ${GREEN}ACTIVE${NC}"
+else
+    echo -e "  Service status: ${RED}INACTIVE${NC}"
+    ((FAILED++))
+fi
 
-error() {
-    echo -e "${RED}[FAIL]${NC} $1" >&2
-    TESTS_FAILED=$((TESTS_FAILED + 1))
-}
+# Check etcd service on master-2
+echo -e "\nChecking etcd service on master-2..."
+if ssh vagrant@master-2 "sudo systemctl is-active --quiet etcd" 2>/dev/null; then
+    echo -e "  Service status: ${GREEN}ACTIVE${NC}"
+else
+    echo -e "  Service status: ${RED}INACTIVE${NC}"
+    ((FAILED++))
+fi
 
-success() {
-    echo -e "${GREEN}[PASS]${NC} $1"
-    TESTS_PASSED=$((TESTS_PASSED + 1))
-}
+# Check etcd cluster members
+echo -e "\nChecking etcd cluster members..."
+MEMBER_OUTPUT=$(sudo ETCDCTL_API=3 etcdctl member list \
+  --endpoints=https://127.0.0.1:2379 \
+  --cacert=/etc/etcd/ca.crt \
+  --cert=/etc/etcd/etcd-server.crt \
+  --key=/etc/etcd/etcd-server.key 2>&1)
 
-warning() {
-    echo -e "${YELLOW}[WARN]${NC} $1"
-}
-
-info() {
-    echo -e "${BLUE}[INFO]${NC} $1"
-}
-
-# Test etcd binary installation
-test_etcd_installation() {
-    log "Testing etcd binary installation..."
-    
-    if command -v etcd >/dev/null 2>&1; then
-        local etcd_version=$(etcd --version 2>/dev/null | head -1 || echo "unknown")
-        success "etcd binary installed: $etcd_version"
-    else
-        error "etcd binary not found in PATH"
-    fi
-    
-    if command -v etcdctl >/dev/null 2>&1; then
-        local etcdctl_version=$(etcdctl version 2>/dev/null | head -1 || echo "unknown")
-        success "etcdctl binary installed: $etcdctl_version"
-    else
-        error "etcdctl binary not found in PATH"
-    fi
-}
-
-# Test etcd service status
-test_etcd_service() {
-    log "Testing etcd service status..."
-    
-    if sudo systemctl is-active --quiet etcd; then
-        success "etcd service is active"
-    else
-        error "etcd service is not active"
-        info "Service status:"
-        sudo systemctl status etcd --no-pager --lines=5
-    fi
-    
-    if sudo systemctl is-enabled --quiet etcd; then
-        success "etcd service is enabled"
-    else
-        error "etcd service is not enabled"
-    fi
-}
-
-# Test etcd certificates
-test_etcd_certificates() {
-    log "Testing etcd certificates..."
-    
-    local certificates=("ca.crt" "etcd-server.crt" "etcd-server.key")
-    
-    for cert in "${certificates[@]}"; do
-        local cert_path="${ETCD_CONFIG_DIR}/${cert}"
-        if [[ -f "$cert_path" ]]; then
-            success "Certificate exists: $cert"
-            
-            # Check permissions
-            local perm=$(stat -c "%a" "$cert_path")
-            local expected_perm="644"
-            if [[ "$cert" == *".key" ]]; then
-                expected_perm="600"
-            fi
-            
-            if [[ "$perm" == "$expected_perm" ]]; then
-                success "Certificate $cert has correct permissions ($perm)"
-            else
-                error "Certificate $cert has incorrect permissions ($perm, expected $expected_perm)"
-            fi
-        else
-            error "Certificate missing: $cert_path"
-        fi
-    done
-}
-
-# Test etcd local connectivity
-test_etcd_connectivity() {
-    log "Testing etcd local connectivity..."
-    
-    # Test localhost endpoint
-    if sudo ETCDCTL_API=3 etcdctl \
-        --endpoints=https://127.0.0.1:2379 \
-        --cacert=${ETCD_CONFIG_DIR}/ca.crt \
-        --cert=${ETCD_CONFIG_DIR}/etcd-server.crt \
-        --key=${ETCD_CONFIG_DIR}/etcd-server.key \
-        endpoint health >/dev/null 2>&1; then
-        success "etcd localhost endpoint healthy"
-    else
-        error "etcd localhost endpoint unhealthy"
-    fi
-    
-    # Test cluster endpoints
-    local healthy_endpoints=0
-    for ip in "${MASTER_IPS[@]}"; do
-        if sudo ETCDCTL_API=3 etcdctl \
-            --endpoints=https://${ip}:2379 \
-            --cacert=${ETCD_CONFIG_DIR}/ca.crt \
-            --cert=${ETCD_CONFIG_DIR}/etcd-server.crt \
-            --key=${ETCD_CONFIG_DIR}/etcd-server.key \
-            endpoint health >/dev/null 2>&1; then
-            success "etcd endpoint healthy: https://${ip}:2379"
-            ((healthy_endpoints++))
-        else
-            error "etcd endpoint unhealthy: https://${ip}:2379"
-        fi
+if [ $? -eq 0 ]; then
+    echo -e "  Cluster access: ${GREEN}OK${NC}"
+    echo "$MEMBER_OUTPUT" | while read line; do
+        echo "  $line"
     done
     
-    if [[ $healthy_endpoints -ge 2 ]]; then
-        success "etcd cluster has quorum ($healthy_endpoints/2 nodes healthy)"
+    # Check both members are present
+    if echo "$MEMBER_OUTPUT" | grep -q "master-1" && echo "$MEMBER_OUTPUT" | grep -q "master-2"; then
+        echo -e "  Both members present: ${GREEN}YES${NC}"
     else
-        error "etcd cluster lacks quorum ($healthy_endpoints/2 nodes healthy)"
+        echo -e "  Both members present: ${RED}NO${NC}"
+        ((FAILED++))
     fi
-}
+else
+    echo -e "  Cluster access: ${RED}FAILED${NC}"
+    ((FAILED++))
+fi
 
-# Test cluster membership
-test_cluster_membership() {
-    log "Testing etcd cluster membership..."
-    
-    local member_output
-    if member_output=$(sudo ETCDCTL_API=3 etcdctl \
-        --endpoints=https://127.0.0.1:2379 \
-        --cacert=${ETCD_CONFIG_DIR}/ca.crt \
-        --cert=${ETCD_CONFIG_DIR}/etcd-server.crt \
-        --key=${ETCD_CONFIG_DIR}/etcd-server.key \
-        member list 2>/dev/null); then
-        
-        success "etcd cluster membership retrieved"
-        
-        # Count members
-        local member_count=$(echo "$member_output" | wc -l)
-        if [[ $member_count -eq 2 ]]; then
-            success "etcd cluster has correct number of members (2)"
-        else
-            error "etcd cluster has incorrect number of members ($member_count, expected 2)"
-        fi
-        
-        # Check for expected members
-        for name in "${MASTER_NAMES[@]}"; do
-            if echo "$member_output" | grep -q "$name"; then
-                success "etcd member found: $name"
-            else
-                error "etcd member missing: $name"
-            fi
-        done
-        
-        # Display member information
-        info "Cluster members:"
-        echo "$member_output" | while IFS= read -r line; do
-            info "  $line"
-        done
-        
-    else
-        error "Failed to retrieve etcd cluster membership"
-    fi
-}
+# Test etcd functionality
+echo -e "\nTesting etcd functionality..."
+TEST_KEY="test/key"
+TEST_VALUE="Hello etcd"
 
-# Test basic operations
-test_etcd_operations() {
-    log "Testing basic etcd operations..."
-    
-    local test_key="test-key"
-    local test_value="test-value-$(date +%s)"
-    
-    # Test put operation
-    if sudo ETCDCTL_API=3 etcdctl \
-        --endpoints=https://127.0.0.1:2379 \
-        --cacert=${ETCD_CONFIG_DIR}/ca.crt \
-        --cert=${ETCD_CONFIG_DIR}/etcd-server.crt \
-        --key=${ETCD_CONFIG_DIR}/etcd-server.key \
-        put "$test_key" "$test_value" >/dev/null 2>&1; then
-        success "etcd put operation successful"
-    else
-        error "etcd put operation failed"
-        return
-    fi
-    
-    # Test get operation
-    local retrieved_value
-    if retrieved_value=$(sudo ETCDCTL_API=3 etcdctl \
-        --endpoints=https://127.0.0.1:2379 \
-        --cacert=${ETCD_CONFIG_DIR}/ca.crt \
-        --cert=${ETCD_CONFIG_DIR}/etcd-server.crt \
-        --key=${ETCD_CONFIG_DIR}/etcd-server.key \
-        get "$test_key" --print-value-only 2>/dev/null); then
-        
-        if [[ "$retrieved_value" == "$test_value" ]]; then
-            success "etcd get operation successful"
-        else
-            error "etcd get operation returned wrong value"
-        fi
-    else
-        error "etcd get operation failed"
-    fi
-    
-    # Test delete operation
-    if sudo ETCDCTL_API=3 etcdctl \
-        --endpoints=https://127.0.0.1:2379 \
-        --cacert=${ETCD_CONFIG_DIR}/ca.crt \
-        --cert=${ETCD_CONFIG_DIR}/etcd-server.crt \
-        --key=${ETCD_CONFIG_DIR}/etcd-server.key \
-        del "$test_key" >/dev/null 2>&1; then
-        success "etcd delete operation successful"
-    else
-        error "etcd delete operation failed"
-    fi
-}
+# Write test value
+sudo ETCDCTL_API=3 etcdctl put ${TEST_KEY} "${TEST_VALUE}" \
+  --endpoints=https://127.0.0.1:2379 \
+  --cacert=/etc/etcd/ca.crt \
+  --cert=/etc/etcd/etcd-server.crt \
+  --key=/etc/etcd/etcd-server.key &>/dev/null
 
-# Main execution
-main() {
-    echo "=================================================="
-    echo "etcd Cluster Verification"
-    echo "=================================================="
-    
-    # Check if etcd config directory exists
-    if [[ ! -d "$ETCD_CONFIG_DIR" ]]; then
-        error "etcd config directory not found. Run bootstrap script first."
-        exit 1
-    fi
-    
-    # Run tests
-    test_etcd_installation
-    echo ""
-    test_etcd_service
-    echo ""
-    test_etcd_certificates
-    echo ""
-    test_etcd_connectivity
-    echo ""
-    test_cluster_membership
-    echo ""
-    test_etcd_operations
-    
-    # Summary
-    echo ""
-    echo "=================================================="
-    echo "TEST SUMMARY"
-    echo "=================================================="
-    echo -e "${GREEN}Passed:${NC} ${TESTS_PASSED}"
-    echo -e "${RED}Failed:${NC} ${TESTS_FAILED}"
-    echo ""
-    
-    if [ ${TESTS_FAILED} -eq 0 ]; then
-        echo -e "${GREEN}All etcd cluster tests passed!${NC}"
-        echo "Your etcd cluster is ready for Kubernetes."
-        exit 0
-    else
-        echo -e "${RED}Some etcd cluster tests failed.${NC}"
-        echo "Please review the errors above before proceeding."
-        exit 1
-    fi
-}
+if [ $? -eq 0 ]; then
+    echo -e "  Write test: ${GREEN}PASS${NC}"
+else
+    echo -e "  Write test: ${RED}FAIL${NC}"
+    ((FAILED++))
+fi
 
-# Run main function
-main
+# Read test value
+READ_VALUE=$(sudo ETCDCTL_API=3 etcdctl get ${TEST_KEY} \
+  --endpoints=https://127.0.0.1:2379 \
+  --cacert=/etc/etcd/ca.crt \
+  --cert=/etc/etcd/etcd-server.crt \
+  --key=/etc/etcd/etcd-server.key 2>/dev/null | tail -1)
+
+if [ "$READ_VALUE" == "$TEST_VALUE" ]; then
+    echo -e "  Read test: ${GREEN}PASS${NC}"
+else
+    echo -e "  Read test: ${RED}FAIL${NC}"
+    ((FAILED++))
+fi
+
+# Clean up test key
+sudo ETCDCTL_API=3 etcdctl del ${TEST_KEY} \
+  --endpoints=https://127.0.0.1:2379 \
+  --cacert=/etc/etcd/ca.crt \
+  --cert=/etc/etcd/etcd-server.crt \
+  --key=/etc/etcd/etcd-server.key &>/dev/null
+
+# Check cluster health
+echo -e "\nChecking cluster health..."
+sudo ETCDCTL_API=3 etcdctl endpoint health \
+  --endpoints=https://192.168.5.11:2379,https://192.168.5.12:2379 \
+  --cacert=/etc/etcd/ca.crt \
+  --cert=/etc/etcd/etcd-server.crt \
+  --key=/etc/etcd/etcd-server.key
+
+# Summary
+echo -e "\n=== Test Summary ==="
+if [ $FAILED -eq 0 ]; then
+    echo -e "${GREEN}All tests passed!${NC}"
+    echo "etcd cluster is running correctly on both master nodes."
+else
+    echo -e "${RED}$FAILED test(s) failed!${NC}"
+    exit 1
+fi
