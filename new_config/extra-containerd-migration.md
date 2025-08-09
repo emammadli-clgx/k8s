@@ -21,6 +21,19 @@ Kubernetes 1.24+ removed dockershim; containerd is the recommended CRI. While Do
 - runc: latest stable packaged with containerd
 - CNI plugins: 1.4.x (to be installed during networking step)
 
+## One-Step Script
+
+Preferred: copy the helper script then execute as root (sudo). This encapsulates the manual steps below and is idempotent.
+
+```bash
+scp migrate-to-containerd.sh worker-1:~/
+scp migrate-to-containerd.sh worker-2:~/
+ssh worker-1 'chmod +x migrate-to-containerd.sh && sudo ./migrate-to-containerd.sh'
+ssh worker-2 'chmod +x migrate-to-containerd.sh && sudo ./migrate-to-containerd.sh'
+```
+
+If you prefer to run commands manually, the raw sequence is:
+
 ## Commands (Run on each worker: worker-1, worker-2)
 
 ```bash
@@ -44,7 +57,7 @@ sudo apt-get update
 sudo apt-get install -y containerd.io
 
 # 4. Generate default config and switch to systemd cgroups
-'test -d /etc/containerd || sudo mkdir /etc/containerd
+test -d /etc/containerd || sudo mkdir /etc/containerd
 sudo containerd config default | sudo tee /etc/containerd/config.toml > /dev/null
 sudo sed -i 's/SystemdCgroup = false/SystemdCgroup = true/' /etc/containerd/config.toml
 

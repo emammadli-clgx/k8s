@@ -120,15 +120,41 @@ openssl x509 -req -in service-account.csr -CA ../ca/ca.crt -CAkey ../ca/ca.key -
 ```
 
 ## 9. Distribute Artifacts
-Copy to each master:
+
+IMPORTANT: Run the copy loop from the root PKI directory (`~/pki`). If you run it from inside a subfolder (e.g. `~/pki/sa`) the relative paths will fail (exactly the errors you saw like `apiserver/kube-apiserver.crt: No such file or directory`).
+
+First verify all expected files exist:
 ```bash
-for m in master-1 master-2; do
-  scp ../ca/ca.crt apiserver/kube-apiserver.{crt,key} \
-      etcd/etcd-server.{crt,key} sa/service-account.{crt,key} \
-      $m:~/
-  scp controller/kube-controller-manager.{crt,key} scheduler/kube-scheduler.{crt,key} proxy/kube-proxy.{crt,key} admin/admin.{crt,key} $m:~/
- done
+cd ~/pki
+ls -1 ca/ca.crt \
+  apiserver/kube-apiserver.{crt,key} \
+  etcd/etcd-server.{crt,key} \
+  sa/service-account.{crt,key} \
+  controller/kube-controller-manager.{crt,key} \
+  scheduler/kube-scheduler.{crt,key} \
+  proxy/kube-proxy.{crt,key} \
+  admin/admin.{crt,key}
 ```
+If any are missing, re-run the corresponding generation step before continuing.
+
+Copy to each master (single loop):
+```bash
+cd ~/pki
+for m in master-1 master-2; do
+  scp \
+    ca/ca.crt \
+    apiserver/kube-apiserver.{crt,key} \
+    etcd/etcd-server.{crt,key} \
+    sa/service-account.{crt,key} \
+    controller/kube-controller-manager.{crt,key} \
+    scheduler/kube-scheduler.{crt,key} \
+    proxy/kube-proxy.{crt,key} \
+    admin/admin.{crt,key} \
+    $m:~/
+done
+```
+
+Why simplified: using absolute (from pki root) relative paths removes any ambiguity; no need for `../ca/ca.crt`.
 
 Keep `ca.key` local only (do not copy). Reason: protects CA signing key from compromise.
 

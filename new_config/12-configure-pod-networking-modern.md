@@ -21,38 +21,38 @@ rm cilium-linux-${ARCH}.tar.gz*
 
 ### Deploy
 ```bash
-cilium install --kubeconfig ~/admin.kubeconfig --set cluster.name=kthw --set ipam.mode=kubernetes
+cilium install --kubeconfig ~/kubeconfigs/admin.kubeconfig --set cluster.name=kthw --set ipam.mode=kubernetes
 ```
 (Uses kube-apiserver IPAM; pod CIDRs assigned automatically.)
 
 ### Verify
 ```bash
-cilium status --kubeconfig ~/admin.kubeconfig
-kubectl --kubeconfig ~/admin.kubeconfig get pods -n kube-system -l k8s-app=cilium
+cilium status --kubeconfig ~/kubeconfigs/admin.kubeconfig
+kubectl --kubeconfig ~/kubeconfigs/admin.kubeconfig get pods -n kube-system -l k8s-app=cilium
 ```
 Nodes should move to Ready.
 
 ## Option B: Weave Net (Legacy Style)
 ```bash
-kubectl --kubeconfig ~/admin.kubeconfig apply -f "https://cloud.weave.works/k8s/net?k8s-version=$(kubectl version --kubeconfig ~/admin.kubeconfig | base64 | tr -d '\n')"
+kubectl --kubeconfig ~/kubeconfigs/admin.kubeconfig apply -f "https://cloud.weave.works/k8s/net?k8s-version=$(kubectl version --kubeconfig ~/kubeconfigs/admin.kubeconfig | base64 | tr -d '\n')"
 ```
 Check:
 ```bash
-kubectl --kubeconfig ~/admin.kubeconfig -n kube-system get pods -l name=weave-net
+kubectl --kubeconfig ~/kubeconfigs/admin.kubeconfig -n kube-system get pods -l name=weave-net
 ```
 
 ## Option C: Calico (Policy Focus)
 ```bash
 curl https://raw.githubusercontent.com/projectcalico/calico/v3.28.0/manifests/calico.yaml -O
 # Optionally edit POD_CIDR in manifest if required.
-kubectl --kubeconfig ~/admin.kubeconfig apply -f calico.yaml
+kubectl --kubeconfig ~/kubeconfigs/admin.kubeconfig apply -f calico.yaml
 ```
 
 ## Test DNS & Networking (after CoreDNS deployed later or if installed by default)
 ```bash
-kubectl --kubeconfig ~/admin.kubeconfig create deployment test-nginx --image=nginx:stable-alpine
-kubectl --kubeconfig ~/admin.kubeconfig expose deployment test-nginx --port 80
-kubectl --kubeconfig ~/admin.kubeconfig run curl --image=curlimages/curl -i --restart=Never --rm -it -- curl -s test-nginx.default.svc.cluster.local
+kubectl --kubeconfig ~/kubeconfigs/admin.kubeconfig create deployment test-nginx --image=nginx:stable-alpine
+kubectl --kubeconfig ~/kubeconfigs/admin.kubeconfig expose deployment test-nginx --port 80
+kubectl --kubeconfig ~/kubeconfigs/admin.kubeconfig run curl --image=curlimages/curl -i --restart=Never --rm -it -- curl -s test-nginx.default.svc.cluster.local
 ```
 
 ## Next

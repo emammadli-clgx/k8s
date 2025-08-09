@@ -9,7 +9,7 @@ Confirm kube-apiserver client cert CN (from earlier generation we used CN=kube-a
 
 ClusterRole (scoped to needed node subresources):
 ```bash
-cat <<'EOF' | kubectl apply --kubeconfig ~/admin.kubeconfig -f -
+cat <<'EOF' | kubectl apply --kubeconfig ~/kubeconfigs/admin.kubeconfig -f -
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -29,7 +29,7 @@ Reason: avoid wildcard '*' write verbs across the board.
 
 Binding:
 ```bash
-cat <<'EOF' | kubectl apply --kubeconfig ~/admin.kubeconfig -f -
+cat <<'EOF' | kubectl apply --kubeconfig ~/kubeconfigs/admin.kubeconfig -f -
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
@@ -47,7 +47,7 @@ EOF
 
 Verification (after some pods running):
 ```bash
-kubectl --kubeconfig ~/admin.kubeconfig logs -n kube-system -l k8s-app=cilium --tail=1 || true
+kubectl --kubeconfig ~/kubeconfigs/admin.kubeconfig logs -n kube-system -l k8s-app=cilium --tail=1 || true
 ```
 
 ## Next

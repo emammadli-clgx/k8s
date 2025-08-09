@@ -27,7 +27,7 @@ openssl req -new -key ${WORKER1_HOST}.key -subj "/CN=system:node:${WORKER1_HOST}
 openssl x509 -req -in ${WORKER1_HOST}.csr -CA ${CA_DIR}/ca.crt -CAkey ${CA_DIR}/ca.key -CAcreateserial -out ${WORKER1_HOST}.crt -days 1000 -sha256 -extensions v3_req -extfile openssl-${WORKER1_HOST}.cnf
 ```
 
-Create kubeconfig for worker-1:
+Create kubeconfig for worker-1 (generated inside ~/pki/workers; we'll later move all worker kubeconfigs into a central directory if desired):
 ```bash
 LB=192.168.5.30
 kubectl config set-cluster kubernetes-the-hard-way \
@@ -44,10 +44,10 @@ kubectl config set-context default --cluster=kubernetes-the-hard-way --user=syst
 kubectl config use-context default --kubeconfig=${WORKER1_HOST}.kubeconfig
 ```
 
-Copy artifacts to worker-1:
+Copy artifacts to worker-1 (run from ~/pki/workers):
 ```bash
 scp ${WORKER1_HOST}.crt ${WORKER1_HOST}.key ${WORKER1_HOST}.kubeconfig ${CA_DIR}/ca.crt worker-1:~/
-scp ~/kube-proxy.kubeconfig worker-1:~/
+scp ~/kubeconfigs/kube-proxy.kubeconfig worker-1:~/
 ```
 
 ## On worker-1: Install Binaries
@@ -152,7 +152,7 @@ sudo systemctl start kubelet kube-proxy
 
 Verification (on master-1):
 ```bash
-kubectl --kubeconfig ~/admin.kubeconfig get nodes
+kubectl --kubeconfig ~/kubeconfigs/admin.kubeconfig get nodes
 ```
 Expect NotReady until CNI applied.
 

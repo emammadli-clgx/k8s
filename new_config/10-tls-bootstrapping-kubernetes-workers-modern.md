@@ -28,7 +28,7 @@ stringData:
   usage-bootstrap-signing: "true"
   auth-extra-groups: system:bootstrappers:workers
 EOF
-kubectl apply -f bootstrap-token-${TOKEN_ID}.yaml --kubeconfig ~/admin.kubeconfig
+kubectl apply -f bootstrap-token-${TOKEN_ID}.yaml --kubeconfig ~/kubeconfigs/admin.kubeconfig
 BOOTSTRAP_TOKEN="${TOKEN_ID}.${TOKEN_SECRET}"
 ```
 
@@ -36,19 +36,19 @@ BOOTSTRAP_TOKEN="${TOKEN_ID}.${TOKEN_SECRET}"
 ```bash
 kubectl create clusterrolebinding bootstrap-node-auth \
   --clusterrole=system:node-bootstrapper \
-  --group=system:bootstrappers:workers --kubeconfig ~/admin.kubeconfig
+  --group=system:bootstrappers:workers --kubeconfig ~/kubeconfigs/admin.kubeconfig
 
 kubectl create clusterrolebinding node-client-cert-auto-approve \
   --clusterrole=system:certificates.k8s.io:certificatesigningrequests:nodeclient \
-  --group=system:bootstrappers:workers --kubeconfig ~/admin.kubeconfig
+  --group=system:bootstrappers:workers --kubeconfig ~/kubeconfigs/admin.kubeconfig
 
 kubectl create clusterrolebinding node-renewal-auto-approve \
   --clusterrole=system:certificates.k8s.io:certificatesigningrequests:selfnodeclient \
-  --group=system:nodes --kubeconfig ~/admin.kubeconfig
+  --group=system:nodes --kubeconfig ~/kubeconfigs/admin.kubeconfig
 ```
 
 ## 3. Prepare worker-2
-Copy CA cert:
+Copy CA cert (run from master-1 home where pki directory exists):
 ```bash
 scp ~/pki/ca/ca.crt worker-2:~/
 ```
@@ -65,7 +65,7 @@ Directories:
 ```bash
 sudo mkdir -p /etc/cni/net.d /opt/cni/bin /var/lib/{kubelet,kube-proxy,kubernetes} /var/run/kubernetes
 sudo mv ca.crt /var/lib/kubernetes/
-scp master-1:~/kube-proxy.kubeconfig ~/  # if not already
+scp master-1:~/kubeconfigs/kube-proxy.kubeconfig ~/  # if not already present locally
 sudo mv kube-proxy.kubeconfig /var/lib/kube-proxy/kubeconfig
 ```
 
@@ -161,16 +161,16 @@ sudo systemctl start kubelet kube-proxy
 ## 4. Observe CSR
 On master-1:
 ```bash
-kubectl --kubeconfig ~/admin.kubeconfig get csr
+kubectl --kubeconfig ~/kubeconfigs/admin.kubeconfig get csr
 ```
 Should auto-approve due to bindings. If pending, manually approve:
 ```bash
-kubectl certificate approve <csr-name> --kubeconfig ~/admin.kubeconfig
+kubectl certificate approve <csr-name> --kubeconfig ~/kubeconfigs/admin.kubeconfig
 ```
 
 ## 5. Verify Nodes
 ```bash
-kubectl --kubeconfig ~/admin.kubeconfig get nodes
+kubectl --kubeconfig ~/kubeconfigs/admin.kubeconfig get nodes
 ```
 Both workers appear NotReady until CNI deployed.
 

@@ -154,8 +154,8 @@ sudo systemctl start kube-apiserver kube-controller-manager kube-scheduler
 
 ## Verification
 ```bash
-kubectl --kubeconfig ~/admin.kubeconfig get --raw='/readyz?verbose'
-kubectl --kubeconfig ~/admin.kubeconfig get componentstatuses  # (Some components deprecated; ignore warnings)
+kubectl --kubeconfig ~/kubeconfigs/admin.kubeconfig get --raw='/readyz?verbose'
+kubectl --kubeconfig ~/kubeconfigs/admin.kubeconfig get componentstatuses  # (Some components deprecated; ignore warnings)
 ```
 
 ## Load Balancer (HAProxy)

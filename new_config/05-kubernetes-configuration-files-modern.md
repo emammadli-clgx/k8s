@@ -108,12 +108,16 @@ kubectl config use-context default --kubeconfig=$KUBECONFIG_DST/admin.kubeconfig
 ## 5. Distribute
 ```bash
 for m in master-1 master-2; do
-  scp $KUBECONFIG_DST/admin.kubeconfig $KUBECONFIG_DST/kube-controller-manager.kubeconfig $KUBECONFIG_DST/kube-scheduler.kubeconfig $m:~/
+  ssh $m "mkdir -p ~/kubeconfigs" || true
+  scp $KUBECONFIG_DST/{admin.kubeconfig,kube-controller-manager.kubeconfig,kube-scheduler.kubeconfig} $m:~/kubeconfigs/
 done
 
 for w in worker-1 worker-2; do
-  scp $KUBECONFIG_DST/kube-proxy.kubeconfig $w:~/
+  ssh $w "mkdir -p ~/kubeconfigs" || true
+  scp $KUBECONFIG_DST/kube-proxy.kubeconfig $w:~/kubeconfigs/
 done
+
+echo "All kubeconfigs placed under ~/kubeconfigs on each node."
 ```
 
 ## Next
