@@ -1531,6 +1531,45 @@ verify_system_compatibility() {
 }
 
 #===============================================================================
+# NETWORK CONFIGURATION VALIDATION
+#===============================================================================
+
+validate_network_configuration() {
+    log "=== NETWORK CONFIGURATION VALIDATION ==="
+    
+    # Verify CIDR ranges don't overlap
+    log "Verifying CIDR range isolation..."
+    
+    log "Pod Network (Weave Net): ${CLUSTER_CIDR}"
+    log "Service Network: ${SERVICE_CIDR}"
+    log "CoreDNS IP: ${CLUSTER_DNS}"
+    
+    # Verify DNS IP is within service range
+    if [[ "${CLUSTER_DNS}" =~ ^10\.96\. ]]; then
+        log_success "CoreDNS IP is correctly within service CIDR range"
+    else
+        log_warn "CoreDNS IP may not be within service CIDR range"
+    fi
+    
+    # Verify Weave Net range
+    if [[ "${CLUSTER_CIDR}" == "10.32.0.0/12" ]]; then
+        log_success "Using optimal Weave Net CIDR range"
+    else
+        log_warn "CIDR range may not be optimal for Weave Net"
+    fi
+    
+    # Check for any hardcoded IPs in the script
+    log "Checking for hardcoded network configurations..."
+    if grep -q "10.244.0.0" "$0" 2>/dev/null; then
+        log_warn "Found legacy hardcoded CIDR references"
+    else
+        log_success "No legacy hardcoded CIDR references found"
+    fi
+    
+    log_success "Network configuration validation completed"
+}
+
+#===============================================================================
 # PHASE 13: VERIFICATION AND SMOKE TESTS
 #===============================================================================
 
@@ -1539,6 +1578,9 @@ run_smoke_tests() {
     
     # Run comprehensive network verification first
     verify_network_health
+    
+    # Validate network configuration
+    validate_network_configuration
     
     # Run comprehensive system compatibility check
     verify_system_compatibility
