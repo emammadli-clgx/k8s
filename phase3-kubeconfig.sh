@@ -5,7 +5,7 @@
 # Generates kubeconfig files for all components
 #===============================================================================
 
-# Exit on any error
+# Exit on any erro
 set -euo pipefail
 
 # Logging functions
@@ -83,7 +83,7 @@ for worker in worker-1 worker-2; do
         continue
     fi
     
-    # Set cluster
+    # Set cluste
     ${KUBECTL_CMD} config set-cluster kubernetes-the-hard-way \
         --certificate-authority="${CERT_DIR}/ca.crt" \
         --embed-certs=true \

@@ -11,7 +11,7 @@
         "${CONFIG_DIR}/kube-scheduler.kubeconfig" 
         vagrant@${node}:~/ || {
 
-# Exit on any error
+# Exit on any erro
 set -euo pipefail
 
 # Logging functions
@@ -122,7 +122,7 @@ bootstrap_control_plane_node() {
     log "Creating kube-apiserver service on ${node}..."
     cat > "/tmp/kube-apiserver-${node}.service" <<EOF
 [Unit]
-Description=Kubernetes API Server
+Description=Kubernetes API Serve
 Documentation=https://github.com/kubernetes/kubernetes
 
 [Service]
@@ -166,7 +166,7 @@ EOF
     # Create controller manager service
     cat > "/tmp/kube-controller-manager-${node}.service" <<EOF
 [Unit]
-Description=Kubernetes Controller Manager
+Description=Kubernetes Controller Manage
 Documentation=https://github.com/kubernetes/kubernetes
 
 [Service]
@@ -193,7 +193,7 @@ EOF
     # Create scheduler service
     cat > "/tmp/kube-scheduler-${node}.service" <<EOF
 [Unit]
-Description=Kubernetes Scheduler
+Description=Kubernetes Schedule
 Documentation=https://github.com/kubernetes/kubernetes
 
 [Service]
@@ -212,7 +212,7 @@ EOF
 apiVersion: kubescheduler.config.k8s.io/v1beta3
 kind: KubeSchedulerConfiguration
 profiles:
-- schedulerName: default-scheduler
+- schedulerName: default-schedule
 leaderElection:
   leaderElect: true
 EOF
@@ -331,7 +331,7 @@ for node in "${MASTER_NODES[@]}"; do
             echo '✓ All services are running on ${node}'
         else
             echo '✗ Some services failed to start on ${node}'
-            sudo systemctl status kube-apiserver kube-controller-manager kube-scheduler --no-pager
+            sudo systemctl status kube-apiserver kube-controller-manager kube-scheduler --no-page
             exit 1
         fi
     " || {

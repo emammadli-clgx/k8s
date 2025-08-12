@@ -2,10 +2,10 @@
 
 #===============================================================================
 # PHASE 7: BOOTSTRAP KUBERNETES WORKERS
-# Configure and start worker nodes to join the cluster
+# Configure and start worker nodes to join the cluste
 #===============================================================================
 
-# Exit on any error
+# Exit on any erro
 set -euo pipefail
 
 # Logging functions
@@ -272,9 +272,9 @@ for i in "${!WORKERS[@]}"; do
     fi
 done
 
-# Verify nodes are joining the cluster
+# Verify nodes are joining the cluste
 log "Verifying nodes are joining the cluster..."
-sleep 30  # Give nodes time to register
+sleep 30  # Give nodes time to registe
 
 # Check with kubectl if available
 if [[ -f "./kubectl" ]]; then

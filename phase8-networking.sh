@@ -5,7 +5,7 @@
 # Deploy and configure Weave Net CNI for pod-to-pod communication
 #===============================================================================
 
-# Exit on any error
+# Exit on any erro
 set -euo pipefail
 
 # Logging functions
@@ -355,7 +355,7 @@ spec:
   - name: network-test
     image: busybox:1.35
     command: ['sleep', '3600']
-  restartPolicy: Never
+  restartPolicy: Neve
 EOF
 
 if ${KUBECTL_CMD} --kubeconfig="${KUBECONFIG_FILE}" apply -f network-test-pod.yaml; then

@@ -5,7 +5,7 @@
 # Generates encryption configuration for etcd data at rest
 #===============================================================================
 
-# Exit on any error
+# Exit on any erro
 set -euo pipefail
 
 # Logging functions

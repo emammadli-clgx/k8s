@@ -5,7 +5,7 @@
 # Comprehensive testing of the Kubernetes cluster functionality
 #===============================================================================
 
-# Exit on any error
+# Exit on any erro
 set -euo pipefail
 
 # Logging functions
@@ -188,7 +188,7 @@ spec:
   - name: dns-test
     image: busybox:1.35
     command: ['sleep', '3600']
-  restartPolicy: Never
+  restartPolicy: Neve
 EOF
 
 if ${KUBECTL_CMD} --kubeconfig="${KUBECONFIG_FILE}" apply -f dns-test-pod.yaml; then

@@ -5,7 +5,7 @@
 # Sets up the basic environment and installs required packages
 #===============================================================================
 
-# Exit on any error
+# Exit on any erro
 set -euo pipefail
 
 # Logging functions
@@ -172,7 +172,7 @@ if [[ "$HOSTNAME" == "master-1" ]]; then
         fi
     done
     
-    # Check connectivity to load balancer
+    # Check connectivity to load balance
     if ping -c 1 192.168.5.30 >/dev/null 2>&1; then
         log "✓ Can reach load balancer (192.168.5.30)"
     else

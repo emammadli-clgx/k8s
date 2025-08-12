@@ -2,10 +2,10 @@
 
 #===============================================================================
 # PHASE 9: DNS ADDON (CoreDNS)
-# Deploy and configure CoreDNS for service discovery within the cluster
+# Deploy and configure CoreDNS for service discovery within the cluste
 #===============================================================================
 
-# Exit on any error
+# Exit on any erro
 set -euo pipefail
 
 # Logging functions
@@ -214,7 +214,7 @@ spec:
         - key: node-role.kubernetes.io/control-plane
           operator: Exists
           effect: NoSchedule
-        - key: node-role.kubernetes.io/master
+        - key: node-role.kubernetes.io/maste
           operator: Exists
           effect: NoSchedule
         - key: "CriticalAddonsOnly"
@@ -369,7 +369,7 @@ spec:
   - name: dns-test
     image: busybox:1.35
     command: ['sleep', '3600']
-  restartPolicy: Never
+  restartPolicy: Neve
 EOF
 
 if ${KUBECTL_CMD} --kubeconfig="${KUBECONFIG_FILE}" apply -f dns-test-pod.yaml; then

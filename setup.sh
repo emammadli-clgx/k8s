@@ -12,7 +12,7 @@ RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+NC='\033[0m' # No Colo
 
 log() {
     echo -e "${BLUE}[$(date '+%Y-%m-%d %H:%M:%S')]${NC} $1"
@@ -63,39 +63,41 @@ log "Validating network connectivity..."
 # Check if we can reach other nodes
 failed_nodes=()
 
-for i in "${!MASTER_NODES[@]}"; do
-    node=${MASTER_NODES[$i]}
-    ip=${MASTER_IPS[$i]}
-    
-    if [[ "$node" == "$HOSTNAME" ]]; then
-        continue  # Skip self
-    fi
-    
-    if ping -c 1 -W 2 "$ip" >/dev/null 2>&1; then
-        log_success "Can reach ${node} (${ip})"
-    else
-        log_warn "Cannot reach ${node} (${ip})"
-        failed_nodes+=("${node}")
-    fi
-done
+# Check master nodes
+if ping -c 1 -W 2 "$MASTER_1_IP" >/dev/null 2>&1; then
+    log_success "Can reach master-1 (${MASTER_1_IP})"
+else
+    log_warn "Cannot reach master-1 (${MASTER_1_IP})"
+    failed_nodes+=("master-1")
+fi
 
-for i in "${!WORKER_NODES[@]}"; do
-    node=${WORKER_NODES[$i]}
-    ip=${WORKER_IPS[$i]}
-    
-    if ping -c 1 -W 2 "$ip" >/dev/null 2>&1; then
-        log_success "Can reach ${node} (${ip})"
-    else
-        log_warn "Cannot reach ${node} (${ip})"
-        failed_nodes+=("${node}")
-    fi
-done
+if ping -c 1 -W 2 "$MASTER_2_IP" >/dev/null 2>&1; then
+    log_success "Can reach master-2 (${MASTER_2_IP})"
+else
+    log_warn "Cannot reach master-2 (${MASTER_2_IP})"
+    failed_nodes+=("master-2")
+fi
+
+# Check worker nodes  
+if ping -c 1 -W 2 "$WORKER_1_IP" >/dev/null 2>&1; then
+    log_success "Can reach worker-1 (${WORKER_1_IP})"
+else
+    log_warn "Cannot reach worker-1 (${WORKER_1_IP})"
+    failed_nodes+=("worker-1")
+fi
+
+if ping -c 1 -W 2 "$WORKER_2_IP" >/dev/null 2>&1; then
+    log_success "Can reach worker-2 (${WORKER_2_IP})"
+else
+    log_warn "Cannot reach worker-2 (${WORKER_2_IP})"
+    failed_nodes+=("worker-2")
+fi
 
 # Check load balancer
-if ping -c 1 -W 2 "$LOADBALANCER_ADDRESS" >/dev/null 2>&1; then
-    log_success "Can reach load balancer (${LOADBALANCER_ADDRESS})"
+if ping -c 1 -W 2 "$LOADBALANCER_IP" >/dev/null 2>&1; then
+    log_success "Can reach load balancer (${LOADBALANCER_IP})"
 else
-    log_warn "Cannot reach load balancer (${LOADBALANCER_ADDRESS})"
+    log_warn "Cannot reach load balancer (${LOADBALANCER_IP})"
     failed_nodes+=("loadbalancer")
 fi
 

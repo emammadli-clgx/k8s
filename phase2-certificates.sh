@@ -2,10 +2,10 @@
 
 #===============================================================================
 # PHASE 2: GENERATE CERTIFICATES
-# Generate all required certificates for the Kubernetes cluster
+# Generate all required certificates for the Kubernetes cluste
 #===============================================================================
 
-# Exit on any error
+# Exit on any erro
 set -euo pipefail
 
 # Logging functions
@@ -130,7 +130,7 @@ EOF
         log_error "Failed to generate admin certificate"
         exit 1
     }
-    rm admin.csr
+    rm admin.cs
     log_success "Admin certificate generated"
 else
     log_success "Admin certificate already exists"
@@ -159,7 +159,7 @@ ST=CA
 L=San Francisco
 O=etcd
 OU=Kubernetes The Hard Way
-CN=etcd-server
+CN=etcd-serve
 
 [ v3_req ]
 basicConstraints = CA:FALSE
@@ -184,7 +184,7 @@ EOF
         log_error "Failed to generate etcd server certificate"
         exit 1
     }
-    rm etcd-server.csr
+    rm etcd-server.cs
     log_success "etcd server certificate generated"
 else
     log_success "etcd server certificate already exists"
@@ -213,7 +213,7 @@ ST=CA
 L=San Francisco
 O=Kubernetes
 OU=Kubernetes The Hard Way
-CN=kube-apiserver
+CN=kube-apiserve
 
 [ v3_req ]
 basicConstraints = CA:FALSE
@@ -224,7 +224,7 @@ subjectAltName = @alt_names
 DNS.1 = kubernetes
 DNS.2 = kubernetes.default
 DNS.3 = kubernetes.default.svc
-DNS.4 = kubernetes.default.svc.cluster
+DNS.4 = kubernetes.default.svc.cluste
 DNS.5 = kubernetes.default.svc.cluster.local
 DNS.6 = master-1
 DNS.7 = master-2
@@ -245,13 +245,13 @@ EOF
         log_error "Failed to generate API server certificate"
         exit 1
     }
-    rm kube-apiserver.csr
+    rm kube-apiserver.cs
     log_success "API server certificate generated"
 else
     log_success "API server certificate already exists"
 fi
 
-# 5. Generate Service Account Key Pair
+# 5. Generate Service Account Key Pai
 log "Generating service account certificate..."
 if [[ ! -f service-account.key ]]; then
     openssl genrsa -out service-account.key 2048 || {
@@ -270,7 +270,7 @@ if [[ ! -f service-account.crt ]]; then
         log_error "Failed to generate service account certificate"
         exit 1
     }
-    rm service-account.csr
+    rm service-account.cs
     log_success "Service account certificate generated"
 else
     log_success "Service account certificate already exists"
@@ -326,7 +326,7 @@ EOF
             log_error "Failed to generate ${worker} certificate"
             exit 1
         }
-        rm ${worker}.csr
+        rm ${worker}.cs
         log_success "${worker} certificate generated"
     else
         log_success "${worker} certificate already exists"
@@ -352,7 +352,7 @@ if [[ ! -f kube-controller-manager.crt ]]; then
         log_error "Failed to generate controller manager certificate"
         exit 1
     }
-    rm kube-controller-manager.csr
+    rm kube-controller-manager.cs
     log_success "Controller manager certificate generated"
 else
     log_success "Controller manager certificate already exists"
@@ -377,7 +377,7 @@ if [[ ! -f kube-scheduler.crt ]]; then
         log_error "Failed to generate scheduler certificate"
         exit 1
     }
-    rm kube-scheduler.csr
+    rm kube-scheduler.cs
     log_success "Scheduler certificate generated"
 else
     log_success "Scheduler certificate already exists"
@@ -402,14 +402,14 @@ if [[ ! -f kube-proxy.crt ]]; then
         log_error "Failed to generate kube-proxy certificate"
         exit 1
     }
-    rm kube-proxy.csr
+    rm kube-proxy.cs
     log_success "Kube-proxy certificate generated"
 else
     log_success "Kube-proxy certificate already exists"
 fi
 
 # Clean up temporary files
-rm -f *.conf *.csr
+rm -f *.conf *.cs
 
 # Convert .crt files to .pem format for compatibility with Kubernetes ecosystem
 log "Converting certificates to PEM format for Kubernetes compatibility..."

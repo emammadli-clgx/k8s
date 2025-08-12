@@ -5,7 +5,7 @@
 # Bootstraps etcd cluster on master nodes
 #===============================================================================
 
-# Exit on any error
+# Exit on any erro
 set -euo pipefail
 
 # Logging functions
