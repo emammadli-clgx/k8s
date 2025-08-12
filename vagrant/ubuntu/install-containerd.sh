@@ -43,3 +43,11 @@ apt-get install -y kubernetes-cni || {
     mkdir -p /opt/cni/bin
     curl -L "https://github.com/containernetworking/plugins/releases/download/${CNI_VERSION}/cni-plugins-linux-amd64-${CNI_VERSION}.tgz" | tar -C /opt/cni/bin -xz
 }
+
+# Verify containerd and runc versions
+echo "=== Containerd Installation Complete ==="
+containerd --version
+runc --version
+
+echo "Containerd configuration:"
+cat /etc/containerd/config.toml | grep -E "(SystemdCgroup|sandbox_image)" || echo "Configuration may need verification"

@@ -93,6 +93,24 @@ setup_prerequisites() {
     fi
     containerd --version
     
+    # Verify system is configured for Kubernetes (done by Vagrant provisioning)
+    log "Verifying system configuration for Kubernetes..."
+    if ! lsmod | grep -q br_netfilter; then
+        log_error "br_netfilter module not loaded! Ensure allow-bridge-nf-traffic.sh was run"
+        return 1
+    fi
+    
+    # Check if containerd is properly configured
+    if ! sudo systemctl is-active --quiet containerd; then
+        log_error "containerd service is not running! Check Vagrant provisioning"
+        return 1
+    fi
+    
+    # Verify CNI directory exists (should be created by Vagrant)
+    if [ ! -d "/opt/cni/bin" ]; then
+        log_warn "CNI plugins directory not found - will install during worker setup"
+    fi
+    
     # Verify network connectivity between all nodes (required for Weave Net)
     log "Verifying network connectivity between all nodes..."
     for node in "${MASTER_NODES[@]}" "${WORKER_NODES[@]}"; do
@@ -111,7 +129,7 @@ setup_prerequisites() {
         ssh-keygen -t rsa -b 2048 -f ~/.ssh/id_rsa -N ""
         
         log "Distributing SSH keys to all nodes..."
-        for node in "${MASTER_NODES[@]}" "${WORKER_NODES[@]}" "loadbalancer"; do
+        for node in "${MASTER_NODES[@]}" "${WORKER_NODES[@]}" "lb"; do
             if [ "$node" != "master-1" ]; then
                 log "Copying SSH key to ${node}..."
                 ssh-copy-id -o StrictHostKeyChecking=no vagrant@${node} || {
@@ -435,9 +453,9 @@ bootstrap_etcd() {
         
         log "Bootstrapping etcd on ${node}..."
         
-        ssh vagrant@${node} << EOF
+        ssh vagrant@${node} << 'ETCD_EOF'
             # Download etcd - MODERNIZED VERSION
-            wget -q --show-progress --https-only --timestamping \
+            wget -q --show-progress --https-only --timestamping \\
                 "https://github.com/etcd-io/etcd/releases/download/${ETCD_VERSION}/etcd-${ETCD_VERSION}-linux-amd64.tar.gz"
             
             # Extract and install
@@ -487,7 +505,6 @@ RestartSec=5
 [Install]
 WantedBy=multi-user.target
 ETCD_EOF
-EOF
     }
     
     # Copy certificates to master nodes and bootstrap etcd
@@ -542,7 +559,7 @@ bootstrap_control_plane() {
         
         log "Bootstrapping control plane on ${node}..."
         
-        ssh vagrant@${node} << EOF
+        ssh vagrant@${node} << 'CONTROL_PLANE_EOF'
             # Download Kubernetes binaries - MODERNIZED VERSION
             wget -q --show-progress --https-only --timestamping \\
                 "https://dl.k8s.io/release/${KUBERNETES_VERSION}/bin/linux/amd64/kube-apiserver" \\
@@ -659,7 +676,7 @@ leaderElection:
 clientConnection:
   kubeconfig: /var/lib/kubernetes/kube-scheduler.kubeconfig
 SCHED_CONFIG_EOF
-EOF
+CONTROL_PLANE_EOF
     }
     
     # Copy certificates and configs to master nodes
@@ -710,7 +727,7 @@ EOF
 setup_load_balancer() {
     log "=== PHASE 8: Setting up Load Balancer ==="
     
-    ssh vagrant@loadbalancer << 'EOF'
+    ssh vagrant@lb << 'EOF'
         # Install HAProxy
         sudo apt-get update -qq
         sudo apt-get install -y haproxy
@@ -899,7 +916,7 @@ bootstrap_workers() {
         
         log "Bootstrapping worker node ${node} with Pod CIDR ${pod_cidr}..."
         
-        ssh vagrant@${node} << EOF
+        ssh vagrant@${node} << 'WORKER_EOF'
             # Set the pod CIDR for this worker
             POD_CIDR="${pod_cidr}"
             NODE_IP=\$(hostname -I | awk '{print \$1}')
@@ -923,15 +940,24 @@ bootstrap_workers() {
             chmod +x kubectl kube-proxy kubelet
             sudo mv kubectl kube-proxy kubelet /usr/local/bin/
             
-            # Install CNI plugins - REQUIRED FOR KUBERNETES THE HARD WAY
-            wget -q --show-progress --https-only --timestamping \\
-                "https://github.com/containernetworking/plugins/releases/download/v1.3.0/cni-plugins-linux-amd64-v1.3.0.tgz"
+            # Install CNI plugins - CHECK IF ALREADY INSTALLED BY VAGRANT
+            if [ ! -d "/opt/cni/bin" ] || [ -z "$(ls -A /opt/cni/bin)" ]; then
+                log "Installing CNI plugins (not found in /opt/cni/bin)..."
+                wget -q --show-progress --https-only --timestamping \\
+                    "https://github.com/containernetworking/plugins/releases/download/v1.3.0/cni-plugins-linux-amd64-v1.3.0.tgz"
+                
+                sudo mkdir -p /opt/cni/bin
+                sudo tar -xvf cni-plugins-linux-amd64-v1.3.0.tgz -C /opt/cni/bin/
+            else
+                log "CNI plugins already installed by Vagrant provisioning"
+                ls -la /opt/cni/bin/ | head -5
+            fi
             
-            sudo tar -xvf cni-plugins-linux-amd64-v1.3.0.tgz -C /opt/cni/bin/
-            
-            # Configure containerd for Kubernetes - CRITICAL FOR PROPER OPERATION
-            sudo mkdir -p /etc/containerd
-            sudo tee /etc/containerd/config.toml >/dev/null << CONTAINERD_CONFIG_EOF
+            # Configure containerd for Kubernetes - CHECK AND UPDATE IF NEEDED
+            if ! sudo grep -q "SystemdCgroup = true" /etc/containerd/config.toml 2>/dev/null; then
+                log "Configuring containerd for Kubernetes compatibility..."
+                sudo mkdir -p /etc/containerd
+                sudo tee /etc/containerd/config.toml >/dev/null << CONTAINERD_CONFIG_EOF
 version = 2
 
 [plugins]
@@ -943,9 +969,14 @@ version = 2
           [plugins."io.containerd.grpc.v1.cri".containerd.runtimes.runc.options]
             SystemdCgroup = true
 CONTAINERD_CONFIG_EOF
+                
+                # Restart containerd with new configuration
+                sudo systemctl restart containerd
+            else
+                log "containerd already properly configured for Kubernetes"
+            fi
             
-            # Restart containerd with new configuration
-            sudo systemctl restart containerd
+            # Ensure containerd is enabled and running
             sudo systemctl enable containerd
             
             # Verify containerd is running
@@ -1041,7 +1072,7 @@ PROXY_SERVICE_EOF
             sudo systemctl daemon-reload
             sudo systemctl enable kubelet kube-proxy
             sudo systemctl start kubelet kube-proxy
-EOF
+WORKER_EOF
     }
     
     # Wait for CSRs and approve them (if using TLS bootstrapping)
@@ -1510,8 +1541,8 @@ verify_system_compatibility() {
     
     # Check load balancer
     log "Verifying load balancer health..."
-    LB_STATUS=$(ssh vagrant@loadbalancer "sudo systemctl is-active haproxy" || echo "failed")
-    log "HAProxy on loadbalancer: $LB_STATUS"
+    LB_STATUS=$(ssh vagrant@lb "sudo systemctl is-active haproxy" || echo "failed")
+    log "HAProxy on lb: $LB_STATUS"
     
     # Test API server connectivity through load balancer
     log "Testing API server connectivity through load balancer..."
@@ -1570,6 +1601,97 @@ validate_network_configuration() {
 }
 
 #===============================================================================
+# VAGRANT COMPATIBILITY VERIFICATION
+#===============================================================================
+
+verify_vagrant_compatibility() {
+    log "=== VAGRANT COMPATIBILITY VERIFICATION ==="
+    
+    # Check if we're running on a Vagrant-provisioned system
+    log "Verifying Vagrant environment compatibility..."
+    
+    # Check hostname patterns
+    CURRENT_HOSTNAME=$(hostname -s)
+    if [[ "$CURRENT_HOSTNAME" =~ ^(master|worker)-[0-9]+$ ]]; then
+        log_success "Running on Vagrant-provisioned VM: $CURRENT_HOSTNAME"
+    else
+        log_warn "Hostname pattern doesn't match expected Vagrant naming: $CURRENT_HOSTNAME"
+    fi
+    
+    # Check network interface (Vagrant uses enp0s8 for private network)
+    if ip addr show enp0s8 >/dev/null 2>&1; then
+        VAGRANT_IP=$(ip addr show enp0s8 | grep 'inet ' | awk '{print $2}' | cut -d / -f 1)
+        log_success "Vagrant private network interface enp0s8 found: $VAGRANT_IP"
+        
+        # Verify IP is in expected range
+        if [[ "$VAGRANT_IP" =~ ^192\.168\.5\. ]]; then
+            log_success "IP address is in expected Vagrant range (192.168.5.x)"
+        else
+            log_warn "IP address not in expected Vagrant range: $VAGRANT_IP"
+        fi
+    else
+        log_warn "Vagrant private network interface enp0s8 not found"
+    fi
+    
+    # Check if vagrant user exists
+    if id vagrant >/dev/null 2>&1; then
+        log_success "Vagrant user account found"
+    else
+        log_warn "Vagrant user account not found - may affect SSH operations"
+    fi
+    
+    # Check if Vagrant provisioning files were applied
+    CHECKS_PASSED=0
+    TOTAL_CHECKS=4
+    
+    # Check 1: Bridge netfilter module (from allow-bridge-nf-traffic.sh)
+    if lsmod | grep -q br_netfilter; then
+        log_success "✅ Bridge netfilter module loaded (Vagrant provisioning success)"
+        ((CHECKS_PASSED++))
+    else
+        log_warn "❌ Bridge netfilter module not loaded"
+    fi
+    
+    # Check 2: containerd service (from install-containerd.sh)
+    if sudo systemctl is-active --quiet containerd; then
+        log_success "✅ containerd service active (Vagrant provisioning success)"
+        ((CHECKS_PASSED++))
+    else
+        log_warn "❌ containerd service not active"
+    fi
+    
+    # Check 3: Sysctl settings (from allow-bridge-nf-traffic.sh)
+    if sysctl net.bridge.bridge-nf-call-iptables 2>/dev/null | grep -q "= 1"; then
+        log_success "✅ Bridge netfilter sysctl configured (Vagrant provisioning success)"
+        ((CHECKS_PASSED++))
+    else
+        log_warn "❌ Bridge netfilter sysctl not configured"
+    fi
+    
+    # Check 4: CNI directory (from install-containerd.sh)
+    if [ -d "/opt/cni/bin" ] && [ "$(ls -A /opt/cni/bin 2>/dev/null)" ]; then
+        log_success "✅ CNI plugins directory exists (Vagrant provisioning success)"
+        ((CHECKS_PASSED++))
+    else
+        log_warn "❌ CNI plugins directory empty or missing"
+    fi
+    
+    log "Vagrant provisioning verification: $CHECKS_PASSED/$TOTAL_CHECKS checks passed"
+    
+    if [ "$CHECKS_PASSED" -eq "$TOTAL_CHECKS" ]; then
+        log_success "All Vagrant provisioning checks passed - full compatibility confirmed"
+    elif [ "$CHECKS_PASSED" -ge 3 ]; then
+        log_warn "Most Vagrant provisioning checks passed - minor compatibility issues detected"
+    else
+        log_error "Multiple Vagrant provisioning checks failed - compatibility issues detected"
+        log "Please ensure VMs are properly provisioned with: vagrant up"
+        return 1
+    fi
+    
+    log_success "Vagrant compatibility verification completed"
+}
+
+#===============================================================================
 # PHASE 13: VERIFICATION AND SMOKE TESTS
 #===============================================================================
 
@@ -1581,6 +1703,9 @@ run_smoke_tests() {
     
     # Validate network configuration
     validate_network_configuration
+    
+    # Verify Vagrant compatibility
+    verify_vagrant_compatibility
     
     # Run comprehensive system compatibility check
     verify_system_compatibility
