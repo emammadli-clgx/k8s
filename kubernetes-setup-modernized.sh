@@ -526,65 +526,40 @@ EOF
         "
     done
     
-    # Bootstrap and start etcd on master-1 first
+    # Bootstrap and start etcd on master-1 first (but don't wait for it to be ready)
     log "Bootstrapping etcd on master-1 (cluster founder)..."
     bootstrap_etcd_node master-1 192.168.5.11
     
-    log "Starting etcd service on master-1..."
+    log "Starting etcd service on master-1 (will wait for cluster peers)..."
     ssh vagrant@master-1 "
         sudo systemctl daemon-reload
         sudo systemctl enable etcd
-        sudo systemctl start etcd
+        sudo systemctl start etcd &
         
-        # Check if service started successfully
-        sleep 3
-        if sudo systemctl is-active etcd; then
-            echo 'etcd service is active'
-        else
-            echo 'etcd service failed to start, checking status:'
-            sudo systemctl status etcd --no-pager -l
-            echo 'Checking logs:'
-            sudo journalctl -u etcd --no-pager -l --since '1 minute ago'
-        fi
+        echo 'etcd start command issued on master-1 (backgrounded)'
     "
     
-    # Wait for master-1 etcd to be fully ready
-    log "Waiting for master-1 etcd to be ready..."
-    sleep 15
-    
-    # Verify master-1 etcd is healthy before proceeding
-    retry_count=0
-    while [ $retry_count -lt 12 ]; do
-        if ssh vagrant@master-1 "sudo ETCDCTL_API=3 etcdctl --endpoints=https://127.0.0.1:2379 --cacert=/etc/etcd/ca.crt --cert=/etc/etcd/etcd-server.crt --key=/etc/etcd/etcd-server.key endpoint health" 2>/dev/null; then
-            log_success "master-1 etcd is healthy and ready"
-            break
-        fi
-        log "Waiting for master-1 etcd... (attempt $((retry_count + 1))/12)"
-        sleep 5
-        ((retry_count++))
-    done
-    
-    if [ $retry_count -eq 12 ]; then
-        log_error "master-1 etcd failed to become ready - aborting cluster setup"
-        return 1
-    fi
-    
-    # Now bootstrap remaining etcd members
+    # Quickly bootstrap and start remaining etcd nodes
     for i in "${!MASTER_NODES[@]}"; do
         node=${MASTER_NODES[$i]}
         node_ip=${MASTER_IPS[$i]}
         
         if [ "$node" != "master-1" ]; then
-            log "Bootstrapping etcd on ${node} (joining existing cluster)..."
+            log "Bootstrapping and starting etcd on ${node}..."
             bootstrap_etcd_node ${node} ${node_ip}
             ssh vagrant@${node} "
                 sudo systemctl daemon-reload
                 sudo systemctl enable etcd
-                sudo systemctl start etcd
+                sudo systemctl start etcd &
+                echo 'etcd start command issued on ${node} (backgrounded)'
             "
-            sleep 8  # Allow time for cluster member to join
+            sleep 2  # Brief delay between node starts
         fi
     done
+    
+    # Wait for etcd cluster to form
+    log "Waiting for etcd cluster to form (30 seconds)..."
+    sleep 30
     
     # Wait for etcd cluster to be ready
     sleep 10
