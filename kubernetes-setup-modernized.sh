@@ -397,14 +397,14 @@ generate_kubeconfig_files() {
         --client-certificate=${CERT_DIR}/admin.crt \
         --client-key=${CERT_DIR}/admin.key \
         --embed-certs=true \
-        --kubeconfig=admin.kubeconfig
+        --kubeconfig=${CONFIG_DIR}/admin.kubeconfig
     
     kubectl config set-context default \
         --cluster=kubernetes-the-hard-way \
         --user=admin \
-        --kubeconfig=admin.kubeconfig
+        --kubeconfig=${CONFIG_DIR}/admin.kubeconfig
     
-    kubectl config use-context default --kubeconfig=admin.kubeconfig
+    kubectl config use-context default --kubeconfig=${CONFIG_DIR}/admin.kubeconfig
     
     log_success "Kubeconfig files generation completed"
 }
@@ -957,8 +957,8 @@ EOF
     
     # Apply bootstrap configuration
     log "Applying TLS bootstrapping configuration..."
-    kubectl --kubeconfig=admin.kubeconfig apply -f bootstrap-token.yaml
-    kubectl --kubeconfig=admin.kubeconfig apply -f tls-bootstrapping-rbac.yaml
+    kubectl --kubeconfig=${CONFIG_DIR}/admin.kubeconfig apply -f bootstrap-token.yaml
+    kubectl --kubeconfig=${CONFIG_DIR}/admin.kubeconfig apply -f tls-bootstrapping-rbac.yaml
     
     log_success "TLS bootstrapping setup completed"
 }
@@ -970,27 +970,7 @@ EOF
 bootstrap_workers() {
     log "=== PHASE 10: Bootstrapping Worker Nodes ==="
     
-    # First, distribute certificates and kubeconfigs to workers
-    log "Distributing certificates and kubeconfigs to worker nodes..."
-    for i in "${!WORKER_NODES[@]}"; do
-        worker=${WORKER_NODES[$i]}
-        worker_pod_cidr="10.244.${i}.0/24"  # Individual pod CIDR per worker
-        log "Copying certificates to ${worker} (Pod CIDR: ${worker_pod_cidr})..."
-        
-        # Copy CA certificate and worker-specific certificates
-        scp ${CERT_DIR}/ca.crt vagrant@${worker}:~/
-        scp ${CERT_DIR}/${worker}.crt vagrant@${worker}:~/
-        scp ${CERT_DIR}/${worker}.key vagrant@${worker}:~/
-        
-        # Copy kubeconfigs
-        scp ${CONFIG_DIR}/${worker}.kubeconfig vagrant@${worker}:~/
-        scp ${CONFIG_DIR}/kube-proxy.kubeconfig vagrant@${worker}:~/
-        
-        # Pass pod CIDR to the bootstrap function
-        bootstrap_worker_node ${worker} ${WORKER_IPS[$i]} ${worker_pod_cidr}
-    done
-    
-    # Function to bootstrap a single worker
+    # Function to bootstrap a single worker - DEFINE BEFORE USE
     bootstrap_worker_node() {
         local node=$1
         local node_ip=$2
@@ -1061,7 +1041,7 @@ CONTAINERD_CONFIG_EOF
             sudo cp ca.crt /var/lib/kubernetes/
             sudo cp ${node}.crt ${node}.key /var/lib/kubelet/
             sudo cp ${node}.kubeconfig /var/lib/kubelet/kubeconfig
-            sudo cp kube-proxy.kubeconfig /var/lib/kube-proxy/
+            sudo cp kube-proxy.kubeconfig /var/lib/kube-proxy/kubeconfig
             
             # Create kubelet config - MODERNIZED FOR CONTAINERD
             sudo tee /var/lib/kubelet/kubelet-config.yaml >/dev/null << KUBELET_CONFIG_EOF
@@ -1140,6 +1120,26 @@ PROXY_SERVICE_EOF
             sudo systemctl start kubelet kube-proxy
         "
     }
+    
+    # Now distribute certificates and kubeconfigs to workers
+    log "Distributing certificates and kubeconfigs to worker nodes..."
+    for i in "${!WORKER_NODES[@]}"; do
+        worker=${WORKER_NODES[$i]}
+        worker_pod_cidr="10.244.${i}.0/24"  # Individual pod CIDR per worker
+        log "Copying certificates to ${worker} (Pod CIDR: ${worker_pod_cidr})..."
+        
+        # Copy CA certificate and worker-specific certificates
+        scp ${CERT_DIR}/ca.crt vagrant@${worker}:~/
+        scp ${CERT_DIR}/${worker}.crt vagrant@${worker}:~/
+        scp ${CERT_DIR}/${worker}.key vagrant@${worker}:~/
+        
+        # Copy kubeconfigs
+        scp ${CONFIG_DIR}/${worker}.kubeconfig vagrant@${worker}:~/
+        scp ${CONFIG_DIR}/kube-proxy.kubeconfig vagrant@${worker}:~/
+        
+        # Pass pod CIDR to the bootstrap function
+        bootstrap_worker_node ${worker} ${WORKER_IPS[$i]} ${worker_pod_cidr}
+    done
     
     # Wait for CSRs and approve them (if using TLS bootstrapping)
     # Since we're using pre-generated certificates, this step is optional
@@ -1269,7 +1269,7 @@ subjects:
     name: kube-apiserver
 EOF
     
-    kubectl --kubeconfig=admin.kubeconfig apply -f api-server-to-kubelet-rbac.yaml
+    kubectl --kubeconfig=${CONFIG_DIR}/admin.kubeconfig apply -f api-server-to-kubelet-rbac.yaml
     
     # Deploy CoreDNS - MODERNIZED VERSION
     log "Deploying CoreDNS..."
@@ -1475,7 +1475,7 @@ spec:
     protocol: TCP
 EOF
     
-    kubectl --kubeconfig=admin.kubeconfig apply -f coredns.yaml
+    kubectl --kubeconfig=${CONFIG_DIR}/admin.kubeconfig apply -f coredns.yaml
     
     # Wait for CoreDNS pods to be ready
     log "Waiting for CoreDNS pods to be ready..."
