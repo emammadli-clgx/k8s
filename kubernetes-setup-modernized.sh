@@ -503,11 +503,7 @@ EOF
             tar -xvf etcd-\${ETCD_VERSION}-linux-amd64.tar.gz
             sudo mv etcd-\${ETCD_VERSION}-linux-amd64/etcd* /usr/local/bin/
             
-            # Configure etcd directories
-            sudo mkdir -p /etc/etcd /var/lib/etcd
-            sudo chmod 700 /var/lib/etcd
-            
-            # Install systemd service file
+            # Install systemd service file  
             sudo mv /tmp/etcd.service /etc/systemd/system/etcd.service
         "
         
@@ -518,21 +514,38 @@ EOF
     # Copy certificates to master nodes and bootstrap etcd SEQUENTIALLY
     # CRITICAL: etcd cluster formation requires first node to be ready before others join
     
-    # First copy certificates to all nodes
+    # First copy certificates to all nodes and create etcd directories
     for i in "${!MASTER_NODES[@]}"; do
         node=${MASTER_NODES[$i]}
         log "Copying etcd certificates to ${node}..."
         scp ${CERT_DIR}/ca.crt ${CERT_DIR}/etcd-server.key ${CERT_DIR}/etcd-server.crt vagrant@${node}:~/
-        ssh vagrant@${node} "sudo mv ca.crt etcd-server.key etcd-server.crt /etc/etcd/"
+        ssh vagrant@${node} "
+            sudo mkdir -p /etc/etcd /var/lib/etcd
+            sudo chmod 700 /var/lib/etcd
+            sudo mv ca.crt etcd-server.key etcd-server.crt /etc/etcd/
+        "
     done
     
     # Bootstrap and start etcd on master-1 first
     log "Bootstrapping etcd on master-1 (cluster founder)..."
     bootstrap_etcd_node master-1 192.168.5.11
+    
+    log "Starting etcd service on master-1..."
     ssh vagrant@master-1 "
         sudo systemctl daemon-reload
         sudo systemctl enable etcd
         sudo systemctl start etcd
+        
+        # Check if service started successfully
+        sleep 3
+        if sudo systemctl is-active etcd; then
+            echo 'etcd service is active'
+        else
+            echo 'etcd service failed to start, checking status:'
+            sudo systemctl status etcd --no-pager -l
+            echo 'Checking logs:'
+            sudo journalctl -u etcd --no-pager -l --since '1 minute ago'
+        fi
     "
     
     # Wait for master-1 etcd to be fully ready
