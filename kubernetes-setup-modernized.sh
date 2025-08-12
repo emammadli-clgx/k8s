@@ -27,10 +27,10 @@ NC='\033[0m' # No Color
 KUBERNETES_VERSION="v1.28.4"
 ETCD_VERSION="v3.5.10"
 
-# Network Configuration - OPTIMIZED FOR WEAVE NET
-CLUSTER_CIDR="10.32.0.0/12"    # Weave Net default range (10.32.0.0-10.47.255.255)
-SERVICE_CIDR="10.96.0.0/16"    # Kubernetes services (non-overlapping)
-CLUSTER_DNS="10.96.0.10"       # CoreDNS cluster IP
+# Network Configuration - CORRECTED FOR WEAVE NET COMPATIBILITY
+CLUSTER_CIDR="10.32.0.0/12"    # Weave Net default range (10.32.0.0-10.47.255.255)  
+SERVICE_CIDR="10.32.0.0/24"    # Kubernetes services (within pod network for routing)
+CLUSTER_DNS="10.32.0.10"       # CoreDNS cluster IP (accessible by pods)
 
 # Node Information
 LOADBALANCER_ADDRESS="192.168.5.30"
@@ -247,7 +247,7 @@ DNS.1 = kubernetes
 DNS.2 = kubernetes.default
 DNS.3 = kubernetes.default.svc
 DNS.4 = kubernetes.default.svc.cluster.local
-IP.1 = 10.96.0.1
+IP.1 = 10.32.0.1
 IP.2 = 192.168.5.11
 IP.3 = 192.168.5.12
 IP.4 = 192.168.5.30
@@ -510,27 +510,62 @@ ETCD_SERVICE_EOF
         "
     }
     
-    # Copy certificates to master nodes and bootstrap etcd
+    # Copy certificates to master nodes and bootstrap etcd SEQUENTIALLY
+    # CRITICAL: etcd cluster formation requires first node to be ready before others join
+    
+    # First copy certificates to all nodes
+    for i in "${!MASTER_NODES[@]}"; do
+        node=${MASTER_NODES[$i]}
+        log "Copying etcd certificates to ${node}..."
+        scp ${CERT_DIR}/ca.crt ${CERT_DIR}/etcd-server.key ${CERT_DIR}/etcd-server.crt vagrant@${node}:~/
+        ssh vagrant@${node} "sudo mv ca.crt etcd-server.key etcd-server.crt /etc/etcd/"
+    done
+    
+    # Bootstrap and start etcd on master-1 first
+    log "Bootstrapping etcd on master-1 (cluster founder)..."
+    bootstrap_etcd_node master-1 192.168.5.11
+    ssh vagrant@master-1 "
+        sudo systemctl daemon-reload
+        sudo systemctl enable etcd
+        sudo systemctl start etcd
+    "
+    
+    # Wait for master-1 etcd to be fully ready
+    log "Waiting for master-1 etcd to be ready..."
+    sleep 15
+    
+    # Verify master-1 etcd is healthy before proceeding
+    retry_count=0
+    while [ $retry_count -lt 12 ]; do
+        if ssh vagrant@master-1 "sudo ETCDCTL_API=3 etcdctl --endpoints=https://127.0.0.1:2379 --cacert=/etc/etcd/ca.crt --cert=/etc/etcd/etcd-server.crt --key=/etc/etcd/etcd-server.key endpoint health" 2>/dev/null; then
+            log_success "master-1 etcd is healthy and ready"
+            break
+        fi
+        log "Waiting for master-1 etcd... (attempt $((retry_count + 1))/12)"
+        sleep 5
+        ((retry_count++))
+    done
+    
+    if [ $retry_count -eq 12 ]; then
+        log_error "master-1 etcd failed to become ready - aborting cluster setup"
+        return 1
+    fi
+    
+    # Now bootstrap remaining etcd members
     for i in "${!MASTER_NODES[@]}"; do
         node=${MASTER_NODES[$i]}
         node_ip=${MASTER_IPS[$i]}
         
-        # Copy certificates
-        scp ${CERT_DIR}/ca.crt ${CERT_DIR}/etcd-server.key ${CERT_DIR}/etcd-server.crt vagrant@${node}:~/
-        ssh vagrant@${node} "sudo mv ca.crt etcd-server.key etcd-server.crt /etc/etcd/"
-        
-        # Bootstrap etcd
-        bootstrap_etcd_node ${node} ${node_ip}
-    done
-    
-    # Start etcd on all masters
-    for node in "${MASTER_NODES[@]}"; do
-        log "Starting etcd on ${node}..."
-        ssh vagrant@${node} "
-            sudo systemctl daemon-reload
-            sudo systemctl enable etcd
-            sudo systemctl start etcd
-        "
+        if [ "$node" != "master-1" ]; then
+            log "Bootstrapping etcd on ${node} (joining existing cluster)..."
+            bootstrap_etcd_node ${node} ${node_ip}
+            ssh vagrant@${node} "
+                sudo systemctl daemon-reload
+                sudo systemctl enable etcd
+                sudo systemctl start etcd
+            "
+            sleep 8  # Allow time for cluster member to join
+        fi
     done
     
     # Wait for etcd cluster to be ready
@@ -1585,10 +1620,10 @@ validate_network_configuration() {
     log "CoreDNS IP: ${CLUSTER_DNS}"
     
     # Verify DNS IP is within service range
-    if [[ "${CLUSTER_DNS}" =~ ^10\.96\. ]]; then
-        log_success "CoreDNS IP is correctly within service CIDR range"
+    if [[ "${CLUSTER_DNS}" =~ ^10\.32\. ]]; then
+        log_success "CoreDNS IP is correctly within pod network CIDR range"
     else
-        log_warn "CoreDNS IP may not be within service CIDR range"
+        log_warn "CoreDNS IP may not be within pod network CIDR range"
     fi
     
     # Verify Weave Net range
