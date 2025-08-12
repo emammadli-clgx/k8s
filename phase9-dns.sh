@@ -314,7 +314,7 @@ metadata:
 spec:
   selector:
     k8s-app: kube-dns
-  clusterIP: 10.32.0.10
+  clusterIP: ${CLUSTER_DNS}
   ports:
   - name: dns
     port: 53
@@ -473,11 +473,11 @@ rm -f coredns-rbac.yaml coredns-configmap.yaml coredns-deployment.yaml coredns-s
 # Create status file
 echo "PHASE9_COMPLETED=$(date '+%Y-%m-%d %H:%M:%S')" > "${SCRIPT_DIR}/.phase9_status"
 echo "DNS_PROVIDER=coredns" >> "${SCRIPT_DIR}/.phase9_status"
-echo "DNS_SERVICE_IP=10.32.0.10" >> "${SCRIPT_DIR}/.phase9_status"
+echo "DNS_SERVICE_IP=${CLUSTER_DNS}" >> "${SCRIPT_DIR}/.phase9_status"
 
 log_success "Phase 9: DNS addon (CoreDNS) deployment completed successfully!"
 log "CoreDNS is now providing DNS services for the cluster."
-log "DNS Service IP: 10.32.0.10"
+log "DNS Service IP: ${CLUSTER_DNS}"
 log "Cluster domain: cluster.local"
 
 exit 0

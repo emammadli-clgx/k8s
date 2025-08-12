@@ -111,12 +111,12 @@ Documentation=https://github.com/etcd-io/etcd
 Type=notify
 ExecStart=/usr/local/bin/etcd \\
   --name ${etcd_name} \\
-  --cert-file=/etc/etcd/etcd-server.crt \\
-  --key-file=/etc/etcd/etcd-server.key \\
-  --peer-cert-file=/etc/etcd/etcd-server.crt \\
-  --peer-key-file=/etc/etcd/etcd-server.key \\
-  --trusted-ca-file=/etc/etcd/ca.crt \\
-  --peer-trusted-ca-file=/etc/etcd/ca.crt \\
+  --cert-file=/etc/etcd/etcd-server.pem \\
+  --key-file=/etc/etcd/etcd-server-key.pem \\
+  --peer-cert-file=/etc/etcd/etcd-server.pem \\
+  --peer-key-file=/etc/etcd/etcd-server-key.pem \\
+  --trusted-ca-file=/etc/etcd/ca.pem \\
+  --peer-trusted-ca-file=/etc/etcd/ca.pem \\
   --peer-client-cert-auth \\
   --client-cert-auth \\
   --initial-advertise-peer-urls https://${node_ip}:2380 \\
@@ -176,13 +176,13 @@ for i in "${!MASTER_NODES[@]}"; do
     log "Copying certificates to ${node}..."
     
     # Check if certificates exist
-    if [[ ! -f "${CERT_DIR}/ca.crt" ]] || [[ ! -f "${CERT_DIR}/etcd-server.key" ]] || [[ ! -f "${CERT_DIR}/etcd-server.crt" ]]; then
+    if [[ ! -f "${CERT_DIR}/ca.pem" ]] || [[ ! -f "${CERT_DIR}/etcd-server-key.pem" ]] || [[ ! -f "${CERT_DIR}/etcd-server.pem" ]]; then
         log_error "etcd certificates not found in ${CERT_DIR}"
         exit 1
     fi
     
     # Copy certificates
-    scp "${CERT_DIR}/ca.crt" "${CERT_DIR}/etcd-server.key" "${CERT_DIR}/etcd-server.crt" vagrant@${node}:~/ || {
+    scp "${CERT_DIR}/ca.pem" "${CERT_DIR}/etcd-server-key.pem" "${CERT_DIR}/etcd-server.pem" vagrant@${node}:~/ || {
         log_error "Failed to copy certificates to ${node}"
         exit 1
     }
@@ -190,8 +190,8 @@ for i in "${!MASTER_NODES[@]}"; do
     # Move certificates to proper location
     ssh vagrant@${node} "
         sudo mkdir -p /etc/etcd || exit 1
-        sudo mv ~/ca.crt ~/etcd-server.key ~/etcd-server.crt /etc/etcd/ || exit 1
-        sudo chmod 600 /etc/etcd/etcd-server.key || exit 1
+        sudo mv ~/ca.pem ~/etcd-server-key.pem ~/etcd-server.pem /etc/etcd/ || exit 1
+        sudo chmod 600 /etc/etcd/etcd-server-key.pem || exit 1
         echo '✓ Certificates installed on ${node}'
     " || {
         log_error "Failed to install certificates on ${node}"

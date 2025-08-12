@@ -3,7 +3,13 @@
 #===============================================================================
 # PHASE 6: CONTROL PLANE SETUP
 # Bootstraps Kubernetes control plane components on master nodes
-#===============================================================================
+#===========================================================================    scp "${CERT_DIR}/ca.pem" "${CERT_DIR}/ca-key.pem" "${CERT_DIR}/kube-apiserver.pem" "${CERT_DIR}/kube-apiserver-key.pem" 
+        "${CERT_DIR}/service-account-key.pem" "${CERT_DIR}/service-account.pem" 
+        "${CERT_DIR}/etcd-server.pem" "${CERT_DIR}/etcd-server-key.pem" 
+        "${CONFIG_DIR}/encryption-config.yaml" 
+        "${CONFIG_DIR}/kube-controller-manager.kubeconfig" 
+        "${CONFIG_DIR}/kube-scheduler.kubeconfig" 
+        vagrant@${node}:~/ || {
 
 # Exit on any error
 set -euo pipefail
@@ -130,25 +136,25 @@ ExecStart=/usr/local/bin/kube-apiserver \\
   --audit-log-path=/var/log/audit.log \\
   --authorization-mode=Node,RBAC \\
   --bind-address=0.0.0.0 \\
-  --client-ca-file=/var/lib/kubernetes/ca.crt \\
+  --client-ca-file=/var/lib/kubernetes/ca.pem \\
   --enable-admission-plugins=NamespaceLifecycle,NodeRestriction,LimitRanger,ServiceAccount,DefaultStorageClass,ResourceQuota \\
-  --etcd-cafile=/var/lib/kubernetes/ca.crt \\
-  --etcd-certfile=/var/lib/kubernetes/etcd-server.crt \\
-  --etcd-keyfile=/var/lib/kubernetes/etcd-server.key \\
+  --etcd-cafile=/var/lib/kubernetes/ca.pem \\
+  --etcd-certfile=/var/lib/kubernetes/etcd-server.pem \\
+  --etcd-keyfile=/var/lib/kubernetes/etcd-server-key.pem \\
   --etcd-servers=https://192.168.5.11:2379,https://192.168.5.12:2379 \\
   --event-ttl=1h \\
   --encryption-provider-config=/var/lib/kubernetes/encryption-config.yaml \\
-  --kubelet-certificate-authority=/var/lib/kubernetes/ca.crt \\
-  --kubelet-client-certificate=/var/lib/kubernetes/kube-apiserver.crt \\
-  --kubelet-client-key=/var/lib/kubernetes/kube-apiserver.key \\
+  --kubelet-certificate-authority=/var/lib/kubernetes/ca.pem \\
+  --kubelet-client-certificate=/var/lib/kubernetes/kube-apiserver.pem \\
+  --kubelet-client-key=/var/lib/kubernetes/kube-apiserver-key.pem \\
   --runtime-config='api/all=true' \\
-  --service-account-key-file=/var/lib/kubernetes/service-account.crt \\
-  --service-account-signing-key-file=/var/lib/kubernetes/service-account.key \\
+  --service-account-key-file=/var/lib/kubernetes/service-account.pem \\
+  --service-account-signing-key-file=/var/lib/kubernetes/service-account-key.pem \\
   --service-account-issuer=https://${LOADBALANCER_ADDRESS}:6443 \\
   --service-cluster-ip-range=${SERVICE_CIDR} \\
   --service-node-port-range=30000-32767 \\
-  --tls-cert-file=/var/lib/kubernetes/kube-apiserver.crt \\
-  --tls-private-key-file=/var/lib/kubernetes/kube-apiserver.key \\
+  --tls-cert-file=/var/lib/kubernetes/kube-apiserver.pem \\
+  --tls-private-key-file=/var/lib/kubernetes/kube-apiserver-key.pem \\
   --v=2
 Restart=on-failure
 RestartSec=5
@@ -168,12 +174,12 @@ ExecStart=/usr/local/bin/kube-controller-manager \\
   --bind-address=0.0.0.0 \\
   --cluster-cidr=${CLUSTER_CIDR} \\
   --cluster-name=kubernetes \\
-  --cluster-signing-cert-file=/var/lib/kubernetes/ca.crt \\
-  --cluster-signing-key-file=/var/lib/kubernetes/ca.key \\
+  --cluster-signing-cert-file=/var/lib/kubernetes/ca.pem \\
+  --cluster-signing-key-file=/var/lib/kubernetes/ca-key.pem \\
   --kubeconfig=/var/lib/kubernetes/kube-controller-manager.kubeconfig \\
   --leader-elect=true \\
-  --root-ca-file=/var/lib/kubernetes/ca.crt \\
-  --service-account-private-key-file=/var/lib/kubernetes/service-account.key \\
+  --root-ca-file=/var/lib/kubernetes/ca.pem \\
+  --service-account-private-key-file=/var/lib/kubernetes/service-account-key.pem \\
   --service-cluster-ip-range=${SERVICE_CIDR} \\
   --use-service-account-credentials=true \\
   --v=2
@@ -264,9 +270,9 @@ for i in "${!MASTER_NODES[@]}"; do
     log "Copying files to ${node}..."
     
     # Copy certificates
-    scp "${CERT_DIR}/ca.crt" "${CERT_DIR}/ca.key" "${CERT_DIR}/kube-apiserver.crt" "${CERT_DIR}/kube-apiserver.key" \
-        "${CERT_DIR}/service-account.key" "${CERT_DIR}/service-account.crt" \
-        "${CERT_DIR}/etcd-server.key" "${CERT_DIR}/etcd-server.crt" \
+    scp "${CERT_DIR}/ca.pem" "${CERT_DIR}/ca-key.pem" "${CERT_DIR}/kube-apiserver.pem" "${CERT_DIR}/kube-apiserver-key.pem" \
+        "${CERT_DIR}/service-account-key.pem" "${CERT_DIR}/service-account.pem" \
+        "${CERT_DIR}/etcd-server-key.pem" "${CERT_DIR}/etcd-server.pem" \
         vagrant@${node}:~/ || {
         log_error "Failed to copy certificates to ${node}"
         exit 1
@@ -284,9 +290,9 @@ for i in "${!MASTER_NODES[@]}"; do
     
     # Move files to proper locations
     ssh vagrant@${node} "
-        sudo mv ca.crt ca.key kube-apiserver.crt kube-apiserver.key \\
-            service-account.key service-account.crt \\
-            etcd-server.key etcd-server.crt \\
+        sudo mv ca.pem ca-key.pem kube-apiserver.pem kube-apiserver-key.pem \\
+            service-account-key.pem service-account.pem \\
+            etcd-server-key.pem etcd-server.pem \\
             encryption-config.yaml \\
             kube-controller-manager.kubeconfig \\
             kube-scheduler.kubeconfig /var/lib/kubernetes/ || exit 1
