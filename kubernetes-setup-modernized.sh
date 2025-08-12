@@ -453,58 +453,61 @@ bootstrap_etcd() {
         
         log "Bootstrapping etcd on ${node}..."
         
-        ssh vagrant@${node} << 'ETCD_EOF'
+        ssh vagrant@${node} "
+            ETCD_VERSION='${ETCD_VERSION}'
+            
             # Download etcd - MODERNIZED VERSION
             wget -q --show-progress --https-only --timestamping \\
-                "https://github.com/etcd-io/etcd/releases/download/${ETCD_VERSION}/etcd-${ETCD_VERSION}-linux-amd64.tar.gz"
+                \"https://github.com/etcd-io/etcd/releases/download/\${ETCD_VERSION}/etcd-\${ETCD_VERSION}-linux-amd64.tar.gz\"
             
             # Extract and install
-            tar -xvf etcd-${ETCD_VERSION}-linux-amd64.tar.gz
-            sudo mv etcd-${ETCD_VERSION}-linux-amd64/etcd* /usr/local/bin/
+            tar -xvf etcd-\${ETCD_VERSION}-linux-amd64.tar.gz
+            sudo mv etcd-\${ETCD_VERSION}-linux-amd64/etcd* /usr/local/bin/
             
             # Configure etcd directories
             sudo mkdir -p /etc/etcd /var/lib/etcd
             sudo chmod 700 /var/lib/etcd
             
             # Get internal IP
-            INTERNAL_IP=\$(ip addr show enp0s8 | grep 'inet ' | awk '{print \$2}' | cut -d / -f 1)
-            ETCD_NAME=\$(hostname -s)
+            INTERNAL_IP=\\\$(ip addr show enp0s8 | grep 'inet ' | awk '{print \\\$2}' | cut -d / -f 1)
+            ETCD_NAME=\\\$(hostname -s)
             
             # Create systemd service - MODERNIZED CONFIGURATION
-            sudo tee /etc/systemd/system/etcd.service >/dev/null << 'ETCD_EOF'
+            sudo tee /etc/systemd/system/etcd.service >/dev/null << 'ETCD_SERVICE_EOF'
 [Unit]
 Description=etcd
 Documentation=https://github.com/etcd-io/etcd
 
 [Service]
 Type=notify
-ExecStart=/usr/local/bin/etcd \\
-  --name \${ETCD_NAME} \\
-  --cert-file=/etc/etcd/etcd-server.crt \\
-  --key-file=/etc/etcd/etcd-server.key \\
-  --peer-cert-file=/etc/etcd/etcd-server.crt \\
-  --peer-key-file=/etc/etcd/etcd-server.key \\
-  --trusted-ca-file=/etc/etcd/ca.crt \\
-  --peer-trusted-ca-file=/etc/etcd/ca.crt \\
-  --peer-client-cert-auth \\
-  --client-cert-auth \\
-  --initial-advertise-peer-urls https://\${INTERNAL_IP}:2380 \\
-  --listen-peer-urls https://\${INTERNAL_IP}:2380 \\
-  --listen-client-urls https://\${INTERNAL_IP}:2379,https://127.0.0.1:2379 \\
-  --advertise-client-urls https://\${INTERNAL_IP}:2379 \\
-  --initial-cluster-token etcd-cluster-0 \\
-  --initial-cluster master-1=https://192.168.5.11:2380,master-2=https://192.168.5.12:2380 \\
-  --initial-cluster-state new \\
-  --data-dir=/var/lib/etcd \\
-  --snapshot-count=10000 \\
-  --heartbeat-interval=100 \\
+ExecStart=/usr/local/bin/etcd \\\\
+  --name \\\${ETCD_NAME} \\\\
+  --cert-file=/etc/etcd/etcd-server.crt \\\\
+  --key-file=/etc/etcd/etcd-server.key \\\\
+  --peer-cert-file=/etc/etcd/etcd-server.crt \\\\
+  --peer-key-file=/etc/etcd/etcd-server.key \\\\
+  --trusted-ca-file=/etc/etcd/ca.crt \\\\
+  --peer-trusted-ca-file=/etc/etcd/ca.crt \\\\
+  --peer-client-cert-auth \\\\
+  --client-cert-auth \\\\
+  --initial-advertise-peer-urls https://\\\${INTERNAL_IP}:2380 \\\\
+  --listen-peer-urls https://\\\${INTERNAL_IP}:2380 \\\\
+  --listen-client-urls https://\\\${INTERNAL_IP}:2379,https://127.0.0.1:2379 \\\\
+  --advertise-client-urls https://\\\${INTERNAL_IP}:2379 \\\\
+  --initial-cluster-token etcd-cluster-0 \\\\
+  --initial-cluster master-1=https://192.168.5.11:2380,master-2=https://192.168.5.12:2380 \\\\
+  --initial-cluster-state new \\\\
+  --data-dir=/var/lib/etcd \\\\
+  --snapshot-count=10000 \\\\
+  --heartbeat-interval=100 \\\\
   --election-timeout=1000
 Restart=on-failure
 RestartSec=5
 
 [Install]
 WantedBy=multi-user.target
-ETCD_EOF
+ETCD_SERVICE_EOF
+        "
     }
     
     # Copy certificates to master nodes and bootstrap etcd
@@ -559,13 +562,17 @@ bootstrap_control_plane() {
         
         log "Bootstrapping control plane on ${node}..."
         
-        ssh vagrant@${node} << 'CONTROL_PLANE_EOF'
+        ssh vagrant@${node} "
+            KUBERNETES_VERSION='${KUBERNETES_VERSION}'
+            LOADBALANCER_ADDRESS='${LOADBALANCER_ADDRESS}'
+            SERVICE_CIDR='${SERVICE_CIDR}'
+            
             # Download Kubernetes binaries - MODERNIZED VERSION
             wget -q --show-progress --https-only --timestamping \\
-                "https://dl.k8s.io/release/${KUBERNETES_VERSION}/bin/linux/amd64/kube-apiserver" \\
-                "https://dl.k8s.io/release/${KUBERNETES_VERSION}/bin/linux/amd64/kube-controller-manager" \\
-                "https://dl.k8s.io/release/${KUBERNETES_VERSION}/bin/linux/amd64/kube-scheduler" \\
-                "https://dl.k8s.io/release/${KUBERNETES_VERSION}/bin/linux/amd64/kubectl"
+                \"https://dl.k8s.io/release/\${KUBERNETES_VERSION}/bin/linux/amd64/kube-apiserver\" \\
+                \"https://dl.k8s.io/release/\${KUBERNETES_VERSION}/bin/linux/amd64/kube-controller-manager\" \\
+                \"https://dl.k8s.io/release/\${KUBERNETES_VERSION}/bin/linux/amd64/kube-scheduler\" \\
+                \"https://dl.k8s.io/release/\${KUBERNETES_VERSION}/bin/linux/amd64/kubectl\"
             
             # Install binaries
             chmod +x kube-apiserver kube-controller-manager kube-scheduler kubectl
@@ -575,7 +582,7 @@ bootstrap_control_plane() {
             sudo mkdir -p /etc/kubernetes/config /var/lib/kubernetes/
             
             # Get internal IP
-            INTERNAL_IP=\$(ip addr show enp0s8 | grep 'inet ' | awk '{print \$2}' | cut -d / -f 1)
+            INTERNAL_IP=\\\$(ip addr show enp0s8 | grep 'inet ' | awk '{print \\\$2}' | cut -d / -f 1)
             
             # Create API server service - MODERNIZED CONFIGURATION
             sudo tee /etc/systemd/system/kube-apiserver.service >/dev/null << 'API_EOF'
@@ -584,35 +591,35 @@ Description=Kubernetes API Server
 Documentation=https://github.com/kubernetes/kubernetes
 
 [Service]
-ExecStart=/usr/local/bin/kube-apiserver \\
-  --advertise-address=\${INTERNAL_IP} \\
-  --allow-privileged=true \\
-  --apiserver-count=3 \\
-  --audit-log-maxage=30 \\
-  --audit-log-maxbackup=3 \\
-  --audit-log-maxsize=100 \\
-  --audit-log-path=/var/log/audit.log \\
-  --authorization-mode=Node,RBAC \\
-  --bind-address=0.0.0.0 \\
-  --client-ca-file=/var/lib/kubernetes/ca.crt \\
-  --enable-admission-plugins=NamespaceLifecycle,NodeRestriction,LimitRanger,ServiceAccount,DefaultStorageClass,ResourceQuota \\
-  --etcd-cafile=/var/lib/kubernetes/ca.crt \\
-  --etcd-certfile=/var/lib/kubernetes/etcd-server.crt \\
-  --etcd-keyfile=/var/lib/kubernetes/etcd-server.key \\
-  --etcd-servers=https://192.168.5.11:2379,https://192.168.5.12:2379 \\
-  --event-ttl=1h \\
-  --encryption-provider-config=/var/lib/kubernetes/encryption-config.yaml \\
-  --kubelet-certificate-authority=/var/lib/kubernetes/ca.crt \\
-  --kubelet-client-certificate=/var/lib/kubernetes/kube-apiserver.crt \\
-  --kubelet-client-key=/var/lib/kubernetes/kube-apiserver.key \\
-  --runtime-config=api/all=true \\
-  --service-account-key-file=/var/lib/kubernetes/service-account.crt \\
-  --service-account-signing-key-file=/var/lib/kubernetes/service-account.key \\
-  --service-account-issuer=https://${LOADBALANCER_ADDRESS}:6443 \\
-  --service-cluster-ip-range=${SERVICE_CIDR} \\
-  --service-node-port-range=30000-32767 \\
-  --tls-cert-file=/var/lib/kubernetes/kube-apiserver.crt \\
-  --tls-private-key-file=/var/lib/kubernetes/kube-apiserver.key \\
+ExecStart=/usr/local/bin/kube-apiserver \\\\
+  --advertise-address=\\\${INTERNAL_IP} \\\\
+  --allow-privileged=true \\\\
+  --apiserver-count=3 \\\\
+  --audit-log-maxage=30 \\\\
+  --audit-log-maxbackup=3 \\\\
+  --audit-log-maxsize=100 \\\\
+  --audit-log-path=/var/log/audit.log \\\\
+  --authorization-mode=Node,RBAC \\\\
+  --bind-address=0.0.0.0 \\\\
+  --client-ca-file=/var/lib/kubernetes/ca.crt \\\\
+  --enable-admission-plugins=NamespaceLifecycle,NodeRestriction,LimitRanger,ServiceAccount,DefaultStorageClass,ResourceQuota \\\\
+  --etcd-cafile=/var/lib/kubernetes/ca.crt \\\\
+  --etcd-certfile=/var/lib/kubernetes/etcd-server.crt \\\\
+  --etcd-keyfile=/var/lib/kubernetes/etcd-server.key \\\\
+  --etcd-servers=https://192.168.5.11:2379,https://192.168.5.12:2379 \\\\
+  --event-ttl=1h \\\\
+  --encryption-provider-config=/var/lib/kubernetes/encryption-config.yaml \\\\
+  --kubelet-certificate-authority=/var/lib/kubernetes/ca.crt \\\\
+  --kubelet-client-certificate=/var/lib/kubernetes/kube-apiserver.crt \\\\
+  --kubelet-client-key=/var/lib/kubernetes/kube-apiserver.key \\\\
+  --runtime-config=api/all=true \\\\
+  --service-account-key-file=/var/lib/kubernetes/service-account.crt \\\\
+  --service-account-signing-key-file=/var/lib/kubernetes/service-account.key \\\\
+  --service-account-issuer=https://\\\${LOADBALANCER_ADDRESS}:6443 \\\\
+  --service-cluster-ip-range=\\\${SERVICE_CIDR} \\\\
+  --service-node-port-range=30000-32767 \\\\
+  --tls-cert-file=/var/lib/kubernetes/kube-apiserver.crt \\\\
+  --tls-private-key-file=/var/lib/kubernetes/kube-apiserver.key \\\\
   --v=2
 Restart=on-failure
 RestartSec=5
@@ -629,20 +636,21 @@ Description=Kubernetes Controller Manager
 Documentation=https://github.com/kubernetes/kubernetes
 
 [Service]
-ExecStart=/usr/local/bin/kube-controller-manager \\
-  --bind-address=0.0.0.0 \\
-  --cluster-name=kubernetes \\
-  --cluster-signing-cert-file=/var/lib/kubernetes/ca.crt \\
-  --cluster-signing-key-file=/var/lib/kubernetes/ca.key \\
-  --kubeconfig=/var/lib/kubernetes/kube-controller-manager.kubeconfig \\
-  --leader-elect=true \\
-  --root-ca-file=/var/lib/kubernetes/ca.crt \\
-  --service-account-private-key-file=/var/lib/kubernetes/service-account.key \\
-  --service-cluster-ip-range=${SERVICE_CIDR} \\
-  --use-service-account-credentials=true \\
+ExecStart=/usr/local/bin/kube-controller-manager \\\\
+  --bind-address=0.0.0.0 \\\\
+  --cluster-name=kubernetes \\\\
+  --cluster-signing-cert-file=/var/lib/kubernetes/ca.crt \\\\
+  --cluster-signing-key-file=/var/lib/kubernetes/ca.key \\\\
+  --kubeconfig=/var/lib/kubernetes/kube-controller-manager.kubeconfig \\\\
+  --leader-elect=true \\\\
+  --root-ca-file=/var/lib/kubernetes/ca.crt \\\\
+  --service-account-private-key-file=/var/lib/kubernetes/service-account.key \\\\
+  --service-cluster-ip-range=\\\${SERVICE_CIDR} \\\\
+  --use-service-account-credentials=true \\\\
   --v=2
 Restart=on-failure
 RestartSec=5
+        "
 
 [Install]
 WantedBy=multi-user.target
@@ -916,16 +924,17 @@ bootstrap_workers() {
         
         log "Bootstrapping worker node ${node} with Pod CIDR ${pod_cidr}..."
         
-        ssh vagrant@${node} << 'WORKER_EOF'
-            # Set the pod CIDR for this worker
-            POD_CIDR="${pod_cidr}"
-            NODE_IP=\$(hostname -I | awk '{print \$1}')
+        ssh vagrant@${node} "
+            KUBERNETES_VERSION='${KUBERNETES_VERSION}'
+            POD_CIDR='${pod_cidr}'
+            NODE_IP=\\\$(hostname -I | awk '{print \\\$1}')
             
             # Download worker binaries - MODERNIZED VERSION
             wget -q --show-progress --https-only --timestamping \\
-                "https://dl.k8s.io/release/${KUBERNETES_VERSION}/bin/linux/amd64/kubectl" \\
-                "https://dl.k8s.io/release/${KUBERNETES_VERSION}/bin/linux/amd64/kube-proxy" \\
-                "https://dl.k8s.io/release/${KUBERNETES_VERSION}/bin/linux/amd64/kubelet"
+                \"https://dl.k8s.io/release/\${KUBERNETES_VERSION}/bin/linux/amd64/kubectl\" \\
+                \"https://dl.k8s.io/release/\${KUBERNETES_VERSION}/bin/linux/amd64/kube-proxy\" \\
+                \"https://dl.k8s.io/release/\${KUBERNETES_VERSION}/bin/linux/amd64/kubelet\"
+        "
             
             # Create directories
             sudo mkdir -p \\
