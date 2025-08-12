@@ -757,8 +757,29 @@ CONTROL_PLANE_EOF
         "
     done
     
-    # Wait for API server to be ready
-    sleep 15
+    # Wait for API servers to be ready with proper health checks
+    log "Waiting for API servers to be ready..."
+    sleep 10
+    
+    # Health check for each API server
+    for node in "${MASTER_NODES[@]}"; do
+        log "Checking API server health on ${node}..."
+        retry_count=0
+        while [ $retry_count -lt 24 ]; do  # 2 minutes total
+            if ssh vagrant@${node} "curl -k -s https://127.0.0.1:6443/version" >/dev/null 2>&1; then
+                log_success "API server on ${node} is healthy"
+                break
+            fi
+            log "Waiting for API server on ${node}... (attempt $((retry_count + 1))/24)"
+            sleep 5
+            ((retry_count++))
+        done
+        
+        if [ $retry_count -eq 24 ]; then
+            log_error "API server on ${node} failed to become ready"
+            return 1
+        fi
+    done
     
     log_success "Control plane bootstrap completed"
 }
@@ -961,6 +982,8 @@ bootstrap_workers() {
         
         ssh vagrant@${node} "
             KUBERNETES_VERSION='${KUBERNETES_VERSION}'
+            CLUSTER_DNS='${CLUSTER_DNS}'
+            CLUSTER_CIDR='${CLUSTER_CIDR}'
             POD_CIDR='${pod_cidr}'
             NODE_IP=\\\$(hostname -I | awk '{print \\\$1}')
             
@@ -969,7 +992,6 @@ bootstrap_workers() {
                 \"https://dl.k8s.io/release/\${KUBERNETES_VERSION}/bin/linux/amd64/kubectl\" \\
                 \"https://dl.k8s.io/release/\${KUBERNETES_VERSION}/bin/linux/amd64/kube-proxy\" \\
                 \"https://dl.k8s.io/release/\${KUBERNETES_VERSION}/bin/linux/amd64/kubelet\"
-        "
             
             # Create directories
             sudo mkdir -p \\
@@ -984,62 +1006,45 @@ bootstrap_workers() {
             chmod +x kubectl kube-proxy kubelet
             sudo mv kubectl kube-proxy kubelet /usr/local/bin/
             
-            # Install CNI plugins - CHECK IF ALREADY INSTALLED BY VAGRANT
-            if [ ! -d "/opt/cni/bin" ] || [ -z "$(ls -A /opt/cni/bin)" ]; then
-                log "Installing CNI plugins (not found in /opt/cni/bin)..."
+            # Install CNI plugins if needed
+            if [ ! -d \"/opt/cni/bin\" ] || [ -z \"\\\$(ls -A /opt/cni/bin)\" ]; then
+                echo \"Installing CNI plugins...\"
                 wget -q --show-progress --https-only --timestamping \\
-                    "https://github.com/containernetworking/plugins/releases/download/v1.3.0/cni-plugins-linux-amd64-v1.3.0.tgz"
+                    \"https://github.com/containernetworking/plugins/releases/download/v1.3.0/cni-plugins-linux-amd64-v1.3.0.tgz\"
                 
                 sudo mkdir -p /opt/cni/bin
                 sudo tar -xvf cni-plugins-linux-amd64-v1.3.0.tgz -C /opt/cni/bin/
-            else
-                log "CNI plugins already installed by Vagrant provisioning"
-                ls -la /opt/cni/bin/ | head -5
             fi
             
-            # Configure containerd for Kubernetes - CHECK AND UPDATE IF NEEDED
-            if ! sudo grep -q "SystemdCgroup = true" /etc/containerd/config.toml 2>/dev/null; then
-                log "Configuring containerd for Kubernetes compatibility..."
+            # Configure containerd for Kubernetes
+            if ! sudo grep -q \"SystemdCgroup = true\" /etc/containerd/config.toml 2>/dev/null; then
+                echo \"Configuring containerd for Kubernetes...\"
                 sudo mkdir -p /etc/containerd
-                sudo tee /etc/containerd/config.toml >/dev/null << CONTAINERD_CONFIG_EOF
+                sudo tee /etc/containerd/config.toml >/dev/null << 'CONTAINERD_CONFIG_EOF'
 version = 2
 
 [plugins]
-  [plugins."io.containerd.grpc.v1.cri"]
-    [plugins."io.containerd.grpc.v1.cri".containerd]
-      [plugins."io.containerd.grpc.v1.cri".containerd.runtimes]
-        [plugins."io.containerd.grpc.v1.cri".containerd.runtimes.runc]
-          runtime_type = "io.containerd.runc.v2"
-          [plugins."io.containerd.grpc.v1.cri".containerd.runtimes.runc.options]
+  [plugins.\"io.containerd.grpc.v1.cri\"]
+    [plugins.\"io.containerd.grpc.v1.cri\".containerd]
+      [plugins.\"io.containerd.grpc.v1.cri\".containerd.runtimes]
+        [plugins.\"io.containerd.grpc.v1.cri\".containerd.runtimes.runc]
+          runtime_type = \"io.containerd.runc.v2\"
+          [plugins.\"io.containerd.grpc.v1.cri\".containerd.runtimes.runc.options]
             SystemdCgroup = true
 CONTAINERD_CONFIG_EOF
                 
-                # Restart containerd with new configuration
                 sudo systemctl restart containerd
-            else
-                log "containerd already properly configured for Kubernetes"
             fi
             
             # Ensure containerd is enabled and running
             sudo systemctl enable containerd
             
-            # Verify containerd is running
-            sudo systemctl status containerd --no-pager || {
-                echo "WARNING: containerd not running properly"
-            }
-            
-            # Move certificates to proper locations
+            # Copy certificates and kubeconfigs
             sudo cp ca.crt /var/lib/kubernetes/
-            sudo cp ${node}.crt /var/lib/kubelet/
-            sudo cp ${node}.key /var/lib/kubelet/
-            
-            # Move kubeconfigs
+            sudo cp ${node}.crt ${node}.key /var/lib/kubelet/
             sudo cp ${node}.kubeconfig /var/lib/kubelet/kubeconfig
             sudo cp kube-proxy.kubeconfig /var/lib/kube-proxy/
             
-            # Note: CNI configuration will be handled by Weave Net DaemonSet
-            # No manual CNI config needed when using Weave Net
-
             # Create kubelet config - MODERNIZED FOR CONTAINERD
             sudo tee /var/lib/kubelet/kubelet-config.yaml >/dev/null << KUBELET_CONFIG_EOF
 kind: KubeletConfiguration
@@ -1050,21 +1055,21 @@ authentication:
   webhook:
     enabled: true
   x509:
-    clientCAFile: "/var/lib/kubernetes/ca.crt"
+    clientCAFile: \"/var/lib/kubernetes/ca.crt\"
 authorization:
   mode: Webhook
-clusterDomain: "cluster.local"
+clusterDomain: \"cluster.local\"
 clusterDNS:
-  - "${CLUSTER_DNS}"
-containerRuntimeEndpoint: "unix:///var/run/containerd/containerd.sock"
-resolvConf: "/run/systemd/resolve/resolv.conf"
-runtimeRequestTimeout: "15m"
-tlsCertFile: "/var/lib/kubelet/${node}.crt"
-tlsPrivateKeyFile: "/var/lib/kubelet/${node}.key"
+  - \"\${CLUSTER_DNS}\"
+containerRuntimeEndpoint: \"unix:///var/run/containerd/containerd.sock\"
+resolvConf: \"/run/systemd/resolve/resolv.conf\"
+runtimeRequestTimeout: \"15m\"
+tlsCertFile: \"/var/lib/kubelet/${node}.crt\"
+tlsPrivateKeyFile: \"/var/lib/kubelet/${node}.key\"
 KUBELET_CONFIG_EOF
 
             # Create kubelet service - MODERNIZED FOR CONTAINERD
-            sudo tee /etc/systemd/system/kubelet.service >/dev/null << KUBELET_SERVICE_EOF
+            sudo tee /etc/systemd/system/kubelet.service >/dev/null << 'KUBELET_SERVICE_EOF'
 [Unit]
 Description=Kubernetes Kubelet
 Documentation=https://github.com/kubernetes/kubernetes
@@ -1072,12 +1077,11 @@ After=containerd.service
 Requires=containerd.service
 
 [Service]
-ExecStart=/usr/local/bin/kubelet \\
-  --config=/var/lib/kubelet/kubelet-config.yaml \\
-  --container-runtime-endpoint=unix:///var/run/containerd/containerd.sock \\
-  --kubeconfig=/var/lib/kubelet/kubeconfig \\
-  --node-ip=\${NODE_IP} \\
-  --register-node=true \\
+ExecStart=/usr/local/bin/kubelet \\\\
+  --config=/var/lib/kubelet/kubelet-config.yaml \\\\
+  --container-runtime-endpoint=unix:///var/run/containerd/containerd.sock \\\\
+  --kubeconfig=/var/lib/kubelet/kubeconfig \\\\
+  --register-node=true \\\\
   --v=2
 Restart=on-failure
 RestartSec=5
@@ -1091,9 +1095,9 @@ KUBELET_SERVICE_EOF
 kind: KubeProxyConfiguration
 apiVersion: kubeproxy.config.k8s.io/v1alpha1
 clientConnection:
-  kubeconfig: "/var/lib/kube-proxy/kubeconfig"
-mode: "iptables"
-clusterCIDR: "${CLUSTER_CIDR}"
+  kubeconfig: \"/var/lib/kube-proxy/kubeconfig\"
+mode: \"iptables\"
+clusterCIDR: \"\${CLUSTER_CIDR}\"
 PROXY_CONFIG_EOF
 
             # Create kube-proxy service
@@ -1103,7 +1107,7 @@ Description=Kubernetes Kube Proxy
 Documentation=https://github.com/kubernetes/kubernetes
 
 [Service]
-ExecStart=/usr/local/bin/kube-proxy \\
+ExecStart=/usr/local/bin/kube-proxy \\\\
   --config=/var/lib/kube-proxy/kube-proxy-config.yaml
 Restart=on-failure
 RestartSec=5
@@ -1116,7 +1120,7 @@ PROXY_SERVICE_EOF
             sudo systemctl daemon-reload
             sudo systemctl enable kubelet kube-proxy
             sudo systemctl start kubelet kube-proxy
-WORKER_EOF
+        "
     }
     
     # Wait for CSRs and approve them (if using TLS bootstrapping)
@@ -1887,10 +1891,7 @@ main() {
         exit 1
     fi
     
-    if ! setup_tls_bootstrapping; then
-        log_error "Failed during TLS bootstrapping setup"
-        exit 1
-    fi
+    # TLS bootstrapping not needed - using pre-generated certificates (Hard Way approach)
     
     if ! bootstrap_workers; then
         log_error "Failed during worker bootstrap"
